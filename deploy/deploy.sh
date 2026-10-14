@@ -6,8 +6,8 @@
 #  组件  ：web(Nginx 前端) + api(NestJS 后端) + postgres(数据库) + meilisearch(搜索)
 #  端口  ：对外只暴露前端一个（WEB_HOST_PORT，默认 80）
 #
-#  默认口令：后台 admin / luotianyi2026
-#            （需要自定义时先导出环境变量 ADMIN_USERNAME / ADMIN_PASSWORD 再执行）
+#  后台账号：用户名 admin（固定），口令默认随机生成并在部署结尾打印；
+#            也可用环境变量指定，例：ADMIN_PASSWORD=xxxx bash deploy/deploy.sh
 #
 #  用法（在仓库根目录执行）：
 #    bash deploy/deploy.sh                 # 首次部署 / 更新（增量构建）
@@ -64,11 +64,12 @@ if [ ! -f .env ] || [ "$REGEN_ENV" = 1 ]; then
     warn "重新生成 .env 会更换数据库密码，旧的 postgres 数据卷将无法登录；"
     warn "如需一并重来，请先执行：docker compose down -v"
   fi
-  log "生成 deploy/.env（随机密钥 + 固定默认后台口令）"
+  log "生成 deploy/.env（随机密钥）"
   PORT="${WEB_HOST_PORT:-80}"
-  # 后台默认账号口令：管理员可登录后自行修改；需要换默认值就用环境变量覆盖
+  # 后台账号：用户名默认 admin；口令默认随机生成（部署结尾会打印）。
+  # 公共仓库里不写死任何口令，需要固定口令就显式传入 ADMIN_PASSWORD。
   ADMIN_USER="${ADMIN_USERNAME:-admin}"
-  ADMIN_PASS="${ADMIN_PASSWORD:-luotianyi2026}"
+  ADMIN_PASS="${ADMIN_PASSWORD:-$(gen 16)}"
 
   cat > .env <<EOF
 # 由 deploy/deploy.sh 自动生成于 $(date '+%Y-%m-%d %H:%M:%S')

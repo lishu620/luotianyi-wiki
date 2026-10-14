@@ -44,7 +44,8 @@ services:
       MEILI_MAX_INDEXING_MEMORY: 128Mb
     volumes:
       - meili-data:/meili_data
-    mem_limit: 256m
+    # 256m 会在内存紧张的机器上触发容器 OOM（实测 RSS 冲到 254M 被杀，重启 2000+ 次）
+    mem_limit: 512m
     healthcheck:
       test: [ 'CMD', 'curl', '-fsS', 'http://localhost:7700/health' ]
       interval: 15s
@@ -96,8 +97,9 @@ services:
     depends_on:
       - api
     # 直接对外暴露（默认宿主 80 端口）
+    # 若宿主 80 已被其它 Nginx 占用，用 WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 只绑回环
     ports:
-      - '${WEB_HOST_PORT:-80}:80'
+      - '${WEB_BIND_IP:-0.0.0.0}:${WEB_HOST_PORT:-80}:80'
     mem_limit: 64m
 
 volumes:

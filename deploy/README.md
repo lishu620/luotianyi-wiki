@@ -1,5 +1,41 @@
 # 生产部署说明
 
+## 快速开始：从 GitHub 一键部署（推荐）
+
+仓库是公开的，服务器上直接 clone 即可：
+
+```bash
+git clone https://github.com/lishu620/luotianyi-wiki.git
+cd luotianyi-wiki
+bash deploy/deploy.sh
+```
+
+脚本依次完成：生成 `deploy/.env`（随机密钥）→ 构建镜像 → 启动 `postgres / meilisearch / api / web` → 等待后端就绪 → 写入示例数据（seed）→ 打印访问地址与后台账号口令。
+
+| 项       | 默认值                                                               |
+| -------- | -------------------------------------------------------------------- |
+| 对外端口 | `80`（可用 `WEB_HOST_PORT` 覆盖）                                    |
+| 后台账号 | `admin`                                                              |
+| 后台口令 | **随机生成，部署结尾打印**；要固定则 `ADMIN_PASSWORD=你的口令 bash deploy/deploy.sh` |
+
+```bash
+bash deploy/deploy.sh --no-cache    # 全量重建镜像
+bash deploy/deploy.sh --skip-seed   # 不写示例数据
+bash deploy/deploy.sh --regen-env   # 重新生成 .env（⚠️ 会换数据库密码，需先 docker compose down -v）
+```
+
+更新已有部署：`git pull && bash deploy/deploy.sh`
+
+> `.env` 只在**不存在**时生成（除非 `--regen-env`）；`ADMIN_PASSWORD` 只在**首次创建 admin** 时生效，账号已存在时不会覆盖（原因见「忘记后台口令」）。
+>
+> ⚠️ 容器名固定为 `lty-*`，**同一台机器只能跑一套**；若旧部署用的是另一套目录/编排，先把它 `docker compose down` 掉。
+
+---
+
+## 历史方案与既有环境
+
+以下描述的是**两台现有机器上已存在的部署**，供运维参考；新机器请用上面的 clone 流程。
+
 本站部署在一台**已有其它线上业务**的服务器上，因此采用了「不与现有服务争抢端口」的方案。
 
 ## 当前部署事实
@@ -38,57 +74,79 @@ lty-web 容器（Nginx 托管 SPA 静态文件）
 
 **关键设计**：所有对外流量只经过宿主机已有的 `nginx-proxy`，本站不新增任何对外监听端口，因此不会与服务器上的 MySQL、fminfinity 等既有服务冲突。
 
-## 为什么前端在本地构建
+该场景下用回环端口启动即可：`WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 bash deploy/deploy.sh`
+（compose 里的映射是 `'${WEB_BIND_IP:-0.0.0.0}:${WEB_HOST_PORT:-80}:80'`，不设 `WEB_BIND_IP` 时会绑到所有网卡。）
 
-服务器可用内存仅约 580MB（同机还跑着 MySQL，占用约 400MB），在这台机器上跑 `vite build` 极可能触发 OOM 并拖挂线上业务。
-因此：
+## 构建内存提醒
 
-- **前端**：本地 `vite build` → 只上传 2.2MB 静态产物
-- **后端**：本地 `tsc` 编译 → 只上传 0.6MB JS，服务器仅执行 `npm install --omit=dev`（21 个生产依赖）
+`deploy.sh` 会在**服务器上**构建镜像，`vite build` 阶段峰值约 500MB。可用内存只有 1.7G 且无 swap 的机器（同机还跑着 MySQL 等其它服务）建议先停栈再构建：
 
-## 一键部署
-
-```powershell
-# 本地：构建 → 上传 → 重建镜像 → 重启 → 校验
-pnpm deploy
-
-# 复用上次构建产物（只改配置时用）
-powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1 -SkipBuild
-
-# 只跑线上校验
-powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1 -OnlyVerify
+```bash
+docker compose -f deploy/docker-compose.yml stop
+bash deploy/deploy.sh
 ```
 
-服务器凭据存放在 `.local/deploy/server.json`（已被 `.gitignore` 忽略，不会提交）。
+## 忘记后台口令
 
-## 分步执行
+口令存的是 bcrypt 哈希，不可逆，只能重置。最直接的是改库：
+
+```bash
+COMPOSE="docker compose -f deploy/docker-compose.yml"
+
+# 1) 生成新口令的哈希（借用 api 容器里的 bcryptjs）
+$COMPOSE exec -T api node -e "require('bcryptjs').hash('你的新口令',10).then(h=>console.log(h))"
+
+# 2) 写回数据库（注意 psql 里驼峰列名必须加双引号）
+$COMPOSE exec -T postgres psql -U luotianyi -d luotianyi_wiki \
+  -c "UPDATE users SET \"passwordHash\"='<第 1 步输出的哈希>' WHERE username='admin';"
+```
+
+或者用另一个有 `user.manage` 权限的账号登录后台 →「用户管理」→ 重置密码。
+
+根因：`UsersService.ensureAdmin` 没传 `syncPassword`，所以 `ADMIN_PASSWORD` 只在**首次创建**账号时写入，之后改 `.env` 不会同步。
+
+## 旧的「本地构建 + 上传产物」流程（备用）
+
+`scripts/deploy/build-bundle.ps1` / `upload-bundle.py` / `deploy.ps1` 是早期方案：本地构建好后把 `api/`、`web/` 产物上传到服务器（bundle 布局，compose 里 `build: ./api`），服务器只跑 `npm install`。
+
+⚠️ 它与现在的 `deploy/docker-compose.yml`（`build.context: ..`，容器内构建）**不是同一套布局**，混在同一目录会互相覆盖，谨慎使用。
+服务器凭据放在 `.local/deploy/server.json`（已被 `.gitignore` 忽略，不会提交）。
 
 ```powershell
 pnpm deploy:build     # 构建并组装 .local/deploy/bundle
-pnpm deploy:upload    # 上传到 /home/mlishu/luotianyi-wiki
-pnpm deploy:verify    # 线上全站校验（29 项）
+pnpm deploy:upload    # 上传到服务器
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1 -OnlyVerify   # 只跑线上校验
 ```
 
 ## 服务器常用运维命令
 
-```bash
-cd /home/mlishu/luotianyi-wiki
+⚠️ 仓库**根目录**也有一个 `docker-compose.yml`（本地开发用的 postgres/meilisearch），所以生产命令必须带 `-f deploy/docker-compose.yml`，否则会操作错编排。
 
-docker compose ps                     # 查看状态
-docker compose logs -f api            # 跟踪后端日志
-docker compose restart api            # 重启后端
-docker compose down                   # 停止全部（保留数据卷）
-docker compose up -d                  # 启动全部
+```bash
+cd <仓库目录>   # 例如 /home/mlishu/luotianyi-wiki
+
+# 更新代码后重新部署（等价于 deploy.sh 的核心步骤）
+git pull
+bash deploy/deploy.sh
+
+# 日常运维
+docker compose -f deploy/docker-compose.yml ps           # 查看状态
+docker compose -f deploy/docker-compose.yml logs -f api  # 跟踪后端日志
+docker compose -f deploy/docker-compose.yml restart api  # 重启后端
+docker compose -f deploy/docker-compose.yml down         # 停止全部（保留数据卷）
+docker compose -f deploy/docker-compose.yml up -d        # 启动全部
 
 # 重建搜索索引（后台控制台也有按钮）
 curl -X POST https://luotianyi.wiki/api/search/reindex \
      -H "Authorization: Bearer <登录接口返回的 token>"
 
 # 数据库备份
-docker compose exec -T postgres pg_dump -U luotianyi luotianyi_wiki > backup-$(date +%F).sql
+docker compose -f deploy/docker-compose.yml exec -T postgres \
+  pg_dump -U luotianyi luotianyi_wiki > backup-$(date +%F).sql
 
 # 数据库恢复
-docker compose exec -T postgres psql -U luotianyi -d luotianyi_wiki < backup.sql
+docker compose -f deploy/docker-compose.yml exec -T postgres \
+  psql -U luotianyi -d luotianyi_wiki < backup.sql
 ```
 
 ## 更新 nginx 配置
@@ -121,6 +179,6 @@ docker exec nginx-proxy nginx -t && docker exec nginx-proxy nginx -s reload
 ## 待处理的安全事项
 
 1. **更换 root 密码并改用 SSH 密钥登录** —— 该密码曾以明文形式出现在聊天记录中。
-2. **更换后台管理员密码** —— 当前沿用了本地开发用的 `luotianyi2026`，登录后在后台修改。
+2. **更换后台管理员密码** —— 新部署的后台口令是随机生成并在部署结尾打印的，登录后建议再改一次；若曾用过固定口令则必须改。
 3. **升级为 Full (strict) SSL** —— 当前是 Cloudflare Flexible，Cloudflare 到源站之间为明文 HTTP。在 Cloudflare 后台 `SSL/TLS → Origin Server` 生成 Origin Certificate，配置到源站后可切到 Full (strict)。
 4. **确认 Docker 开机自启** —— `systemctl is-enabled docker`，容器已设置 `restart: unless-stopped`。
