@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors / os
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# infra data (if bind-mounted)
+infra/data/
+
+# 本地免安装依赖服务（PostgreSQL / Meilisearch），见 scripts/setup-local-services.ps1
+.local/
+
+# 临时 / 一次性脚本与本地产物（不要提交）
+tmp/
+*.bak-*
+*.tar.gz

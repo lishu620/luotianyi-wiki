@@ -1,0 +1,39 @@
+{
+    "name": "luotianyi-wiki",
+    "version": "0.1.0",
+    "private": true,
+    "description": "洛天依 Wiki —— 虚拟歌手资料库、歌曲管理与同好站点导航",
+    "packageManager": "pnpm@10.31.0",
+    "engines": {
+        "node": ">=20.11.0"
+    },
+    "scripts": {
+        "dev": "pnpm --filter @luotianyi/shared build && pnpm -r --parallel --filter \"./apps/*\" dev",
+        "dev:web": "pnpm --filter @luotianyi/web dev",
+        "dev:api": "pnpm --filter @luotianyi/api start:dev",
+        "build": "pnpm --filter @luotianyi/shared build && pnpm --filter @luotianyi/api build && pnpm --filter @luotianyi/web build",
+        "typecheck": "pnpm --filter @luotianyi/shared build && pnpm -r typecheck",
+        "seed": "pnpm --filter @luotianyi/api seed",
+        "seed:force": "pnpm --filter @luotianyi/api seed -- --force",
+        "reindex": "pnpm --filter @luotianyi/api reindex",
+        "infra:up": "docker compose up -d",
+        "infra:down": "docker compose down",
+        "infra:logs": "docker compose logs -f",
+        "services:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-services.ps1",
+        "services:start": "powershell -ExecutionPolicy Bypass -File scripts/start-local-services.ps1",
+        "services:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-local-services.ps1",
+        "deploy": "powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1",
+        "deploy:build": "powershell -ExecutionPolicy Bypass -File scripts/deploy/build-bundle.ps1",
+        "deploy:upload": "py scripts/deploy/upload-bundle.py",
+        "deploy:verify": "powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1 -OnlyVerify"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "esbuild",
+            "@tailwindcss/oxide",
+            "vue-demi",
+            "@nestjs/core",
+            "unrs-resolver"
+        ]
+    }
+}

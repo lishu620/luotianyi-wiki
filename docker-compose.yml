@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lty-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: luotianyi
+      POSTGRES_PASSWORD: luotianyi
+      POSTGRES_DB: luotianyi_wiki
+      # 中文排序/检索更友好
+      LANG: zh_CN.utf8
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U luotianyi -d luotianyi_wiki']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: lty-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: luotianyi_dev_master_key
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '7700:7700'
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  meili-data:

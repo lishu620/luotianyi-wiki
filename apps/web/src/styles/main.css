@@ -1,0 +1,201 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------- */
+/* 暗色模式：使用 html.dark 类切换（与 Element Plus 暗色主题保持一致） */
+/* ---------------------------------------------------------------- */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------- */
+/* 设计令牌：主色取自洛天依代表色「天依蓝」#66CCFF                    */
+/* ---------------------------------------------------------------- */
+@theme {
+  --color-brand-50: #f0fbff;
+  --color-brand-100: #dff6ff;
+  --color-brand-200: #b9ecff;
+  --color-brand-300: #8fdfff;
+  --color-brand-400: #7ad4ff;
+  --color-brand-500: #66ccff;
+  --color-brand-600: #33b4f0;
+  --color-brand-700: #1a93d1;
+  --color-brand-800: #1a76a8;
+  --color-brand-900: #1b6288;
+
+  --color-ink-50: #f8fafc;
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+  --color-ink-600: #475569;
+  --color-ink-700: #334155;
+  --color-ink-800: #1e293b;
+  --color-ink-900: #0f172a;
+  --color-ink-950: #060d19;
+
+  --font-sans:
+    'Inter', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Source Han Sans SC',
+    system-ui, -apple-system, sans-serif;
+
+  --shadow-soft: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.15);
+  --shadow-glow: 0 18px 40px -20px rgb(102 204 255 / 0.65);
+
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* Element Plus 主题变量覆盖                                          */
+/* ---------------------------------------------------------------- */
+:root {
+  --el-color-primary: #66ccff;
+  --el-color-primary-light-3: #8fdfff;
+  --el-color-primary-light-5: #b9ecff;
+  --el-color-primary-light-7: #dff6ff;
+  --el-color-primary-light-8: #ebfaff;
+  --el-color-primary-light-9: #f5fcff;
+  --el-color-primary-dark-2: #33b4f0;
+  --el-border-radius-base: 10px;
+  --el-font-family: var(--font-sans);
+}
+
+/* ---------------------------------------------------------------- */
+/* 基础样式                                                          */
+/* ---------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-50 text-ink-800 antialiased;
+    @apply dark:bg-ink-950 dark:text-ink-100;
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    @apply bg-brand-300/70 text-ink-900;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-ink-300 dark:bg-ink-700;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* 复用组件类                                                        */
+/* ---------------------------------------------------------------- */
+@layer components {
+  .lty-container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .lty-card {
+    @apply rounded-2xl border border-ink-200/70 bg-white shadow-soft transition-all duration-300;
+    @apply dark:border-ink-800 dark:bg-ink-900/70;
+  }
+
+  .lty-card-hover {
+    @apply hover:-translate-y-1 hover:border-brand-300 hover:shadow-glow;
+    @apply dark:hover:border-brand-700;
+  }
+
+  .lty-glass {
+    @apply border border-white/25 bg-white/70 backdrop-blur-xl;
+    @apply dark:border-white/10 dark:bg-ink-900/60;
+  }
+
+  .lty-gradient-text {
+    @apply bg-gradient-to-r from-brand-600 via-brand-500 to-violet-500 bg-clip-text text-transparent;
+  }
+
+  .lty-chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+
+  .lty-prose {
+    @apply text-[15px] leading-[1.9] text-ink-700 dark:text-ink-200;
+  }
+
+  .lty-prose p {
+    @apply my-3;
+  }
+
+  .lty-prose strong {
+    @apply font-semibold text-ink-900 dark:text-white;
+  }
+
+  .lty-prose h3 {
+    @apply mt-6 mb-2 text-lg font-semibold text-ink-900 dark:text-white;
+  }
+
+  .lty-prose ul {
+    @apply my-3 space-y-2 pl-1;
+  }
+
+  .lty-prose li {
+    @apply relative pl-5;
+  }
+
+  .lty-prose li::before {
+    content: '';
+    @apply absolute top-[0.7em] left-0 h-1.5 w-1.5 rounded-full bg-brand-500;
+  }
+
+  .lty-prose code {
+    @apply rounded-md bg-ink-100 px-1.5 py-0.5 text-[0.9em] text-brand-700 dark:bg-ink-800 dark:text-brand-300;
+  }
+
+  .lty-prose a {
+    @apply text-brand-600 underline decoration-brand-300 underline-offset-2 hover:text-brand-700 dark:text-brand-300;
+  }
+}
+
+/* ---------------------------------------------------------------- */
+/* 页面过渡                                                          */
+/* ---------------------------------------------------------------- */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Element Plus 细节微调 */
+.el-card,
+.el-dialog,
+.el-drawer {
+  border-radius: 16px;
+}
+
+.el-table th.el-table__cell {
+  background-color: var(--el-fill-color-lighter);
+}

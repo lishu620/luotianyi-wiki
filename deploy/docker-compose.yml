@@ -1,0 +1,105 @@
+# ---------- 洛天依 Wiki 生产编排（容器内一键构建）----------
+# 仓库整体放在服务器（如 /home/mlishu/luotianyi-wiki），本文件位于 deploy/ 下
+# 构建上下文为仓库根目录（context: ..），由 deploy/Dockerfile.api / Dockerfile.web 多阶段构建
+# 对外只暴露一个端口：宿主 80，直接由 web 容器（Nginx）对外提供服务
+name: luotianyi-wiki
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lty-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE}
+      TZ: Asia/Shanghai
+      # 数据量很小，压低内存占用，避免影响同机其它服务
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=2MB
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    mem_limit: 320m
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}' ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: lty-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: 'true'
+      MEILI_MAX_INDEXING_MEMORY: 128Mb
+    volumes:
+      - meili-data:/meili_data
+    mem_limit: 256m
+    healthcheck:
+      test: [ 'CMD', 'curl', '-fsS', 'http://localhost:7700/health' ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: lty-api:latest
+    container_name: lty-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+      # 容器内一键部署：由 TypeORM 自动建表（如需导入 dump，可设为 false）
+      DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}
+      DB_LOGGING: 'false'
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      MEILI_ENABLED: 'true'
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_SONG_INDEX: songs
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      TZ: Asia/Shanghai
+    mem_limit: 320m
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: lty-web:latest
+    container_name: lty-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    # 直接对外暴露（默认宿主 80 端口）
+    ports:
+      - '${WEB_HOST_PORT:-80}:80'
+    mem_limit: 64m
+
+volumes:
+  pg-data:
+  meili-data:
