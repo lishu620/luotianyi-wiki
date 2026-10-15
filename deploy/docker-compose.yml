@@ -53,10 +53,12 @@ services:
       retries: 5
 
   api:
+    # 镜像名可用 IMAGE_PREFIX / IMAGE_TAG 覆盖。默认指向 CI 推送到 GHCR 的镜像，
+    # 因此 `bash deploy/deploy.sh --prebuilt` 可直接拉取，服务器无需构建。
+    image: ${IMAGE_PREFIX:-ghcr.io/lishu620/luotianyi-wiki}-api:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
-    image: lty-api:latest
     container_name: lty-api
     restart: unless-stopped
     depends_on:
@@ -88,10 +90,11 @@ services:
     mem_limit: 320m
 
   web:
+    # 同 api，镜像名可用 IMAGE_PREFIX / IMAGE_TAG 覆盖
+    image: ${IMAGE_PREFIX:-ghcr.io/lishu620/luotianyi-wiki}-web:${IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
-    image: lty-web:latest
     container_name: lty-web
     restart: unless-stopped
     depends_on:

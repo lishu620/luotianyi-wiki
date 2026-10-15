@@ -10,25 +10,36 @@
 #            也可用环境变量指定，例：ADMIN_PASSWORD=xxxx bash deploy/deploy.sh
 #
 #  用法（在仓库根目录执行）：
-#    bash deploy/deploy.sh                 # 首次部署 / 更新（增量构建）
+#    bash deploy/deploy.sh                 # 首次部署 / 更新（在服务器上构建，增量）
+#    bash deploy/deploy.sh --prebuilt      # 不在本机构建，直接拉取已发布镜像（弱性能主机推荐）
 #    bash deploy/deploy.sh --no-cache      # 不使用构建缓存，全量重建
 #    bash deploy/deploy.sh --skip-seed     # 不写入示例数据
 #    bash deploy/deploy.sh --regen-env     # 重新生成 .env（注意：改密钥后需清空数据卷）
+#
+#  可用环境变量：WEB_HOST_PORT / WEB_BIND_IP / IMAGE_PREFIX / IMAGE_TAG
+#                ADMIN_USERNAME / ADMIN_PASSWORD
 # =============================================================================
 set -euo pipefail
 
 NO_CACHE=0
 SKIP_SEED=0
 REGEN_ENV=0
+PREBUILT=0
 for arg in "$@"; do
   case "$arg" in
+    --prebuilt)  PREBUILT=1 ;;
     --no-cache)  NO_CACHE=1 ;;
     --skip-seed) SKIP_SEED=1 ;;
     --regen-env) REGEN_ENV=1 ;;
-    -h|--help)   sed -n '2,16p' "$0"; exit 0 ;;
+    # 打印文件头部的注释块（第 1 行之后，到第二个「全 # =」分隔线为止）
+    -h|--help)   awk 'NR > 1 { print; if (/^# =+$/ && ++n == 2) exit }' "$0"; exit 0 ;;
     *) echo "未知参数: $arg" >&2; exit 2 ;;
   esac
 done
+if [ "$PREBUILT" = 1 ] && [ "$NO_CACHE" = 1 ]; then
+  echo "--prebuilt 与 --no-cache 不能同时使用（预构建模式不会在本地构建）" >&2
+  exit 2
+fi
 
 cd "$(dirname "$0")"   # 切到 deploy/（compose 与 .env 所在目录）
 
@@ -53,8 +64,11 @@ ensure_image() {
     docker pull "$mirror" && docker tag "$mirror" "$ref"
   fi
 }
-ensure_image node:22-alpine              docker.m.daocloud.io/library/node:22-alpine
-ensure_image nginx:alpine                docker.m.daocloud.io/library/nginx:alpine
+# 预构建模式不需要构建用的基础镜像（node / nginx）
+if [ "$PREBUILT" != 1 ]; then
+  ensure_image node:22-alpine            docker.m.daocloud.io/library/node:22-alpine
+  ensure_image nginx:alpine              docker.m.daocloud.io/library/nginx:alpine
+fi
 ensure_image postgres:16-alpine          docker.m.daocloud.io/library/postgres:16-alpine
 ensure_image getmeili/meilisearch:v1.11  docker.m.daocloud.io/getmeili/meilisearch:v1.11
 
@@ -89,7 +103,11 @@ MEILI_MASTER_KEY=$(gen 36)
 ADMIN_USERNAME=$ADMIN_USER
 ADMIN_PASSWORD=$ADMIN_PASS
 
-# 对外只暴露的前端端口
+# 镜像来源：--prebuilt 模式会从这里拉取（CI 构建后推到 GHCR）
+IMAGE_PREFIX=${IMAGE_PREFIX:-ghcr.io/lishu620/luotianyi-wiki}
+IMAGE_TAG=${IMAGE_TAG:-latest}
+
+# 对外只暴露的前端端口（WEB_BIND_IP 可选，用于只绑回环）
 WEB_HOST_PORT=$PORT
 EOF
   ok ".env 已生成（CORS=*，不绑定具体 IP；后台 $ADMIN_USER / $ADMIN_PASS）"
@@ -100,14 +118,25 @@ fi
 PORT="$(grep -E '^WEB_HOST_PORT=' .env | cut -d= -f2 | tr -d '[:space:]' || true)"
 PORT="${PORT:-80}"
 ADMIN_PASSWORD="$(grep -E '^ADMIN_PASSWORD=' .env | cut -d= -f2 | tr -d '[:space:]' || true)"
+ADMIN_USER="$(grep -E '^ADMIN_USERNAME=' .env | cut -d= -f2 | tr -d '[:space:]' || true)"
+ADMIN_USER="${ADMIN_USER:-admin}"
 
-# ---------------------------------------------------------------- 构建并启动
-if [ "$NO_CACHE" = 1 ]; then
-  log "全量构建镜像（--no-cache）"
-  docker compose build --no-cache
+# ---------------------------------------------------------------- 获取镜像并启动
+if [ "$PREBUILT" = 1 ]; then
+  log "拉取已发布的 api / web 镜像（不在本机构建）"
+  if ! docker compose pull api web; then
+    die "拉取镜像失败。首次使用请先把 GHCR 上两个 Package 设为 public（GitHub → 你的头像 → Packages），或先执行 docker login ghcr.io -u <用户名>"
+  fi
+  log "启动全部服务"
+  docker compose up -d --no-build
+else
+  if [ "$NO_CACHE" = 1 ]; then
+    log "全量构建镜像（--no-cache）"
+    docker compose build --no-cache
+  fi
+  log "构建镜像并启动全部服务"
+  docker compose up -d --build
 fi
-log "构建镜像并启动全部服务"
-docker compose up -d --build
 
 # ---------------------------------------------------------------- 等待后端就绪
 log "等待后端就绪"
@@ -141,4 +170,7 @@ if [ "$PORT" = "80" ]; then URL="http://$HOST_IP"; else URL="http://$HOST_IP:$PO
 printf '\n'
 ok "部署完成 🎉"
 ok "访问地址：$URL"
-ok "后台管理：$URL/admin（账号 admin / 密码 $ADMIN_PASSWORD）"
+ok "后台管理：$URL/admin（账号 $ADMIN_USER / 密码 $ADMIN_PASSWORD）"
+if [ "$PREBUILT" = 1 ]; then
+  ok "镜像来源：$IMAGE_PREFIX-api/$IMAGE_PREFIX-web（$IMAGE_TAG）"
+fi

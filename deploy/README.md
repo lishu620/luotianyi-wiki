@@ -12,10 +12,10 @@ bash deploy/deploy.sh
 
 脚本依次完成：生成 `deploy/.env`（随机密钥）→ 构建镜像 → 启动 `postgres / meilisearch / api / web` → 等待后端就绪 → 写入示例数据（seed）→ 打印访问地址与后台账号口令。
 
-| 项       | 默认值                                                               |
-| -------- | -------------------------------------------------------------------- |
-| 对外端口 | `80`（可用 `WEB_HOST_PORT` 覆盖）                                    |
-| 后台账号 | `admin`                                                              |
+| 项       | 默认值                                                                               |
+| -------- | ------------------------------------------------------------------------------------ |
+| 对外端口 | `80`（可用 `WEB_HOST_PORT` 覆盖）                                                    |
+| 后台账号 | `admin`                                                                              |
 | 后台口令 | **随机生成，部署结尾打印**；要固定则 `ADMIN_PASSWORD=你的口令 bash deploy/deploy.sh` |
 
 ```bash
@@ -29,6 +29,30 @@ bash deploy/deploy.sh --regen-env   # 重新生成 .env（⚠️ 会换数据库
 > `.env` 只在**不存在**时生成（除非 `--regen-env`）；`ADMIN_PASSWORD` 只在**首次创建 admin** 时生效，账号已存在时不会覆盖（原因见「忘记后台口令」）。
 >
 > ⚠️ 容器名固定为 `lty-*`，**同一台机器只能跑一套**；若旧部署用的是另一套目录/编排，先把它 `docker compose down` 掉。
+
+## 弱性能主机：不构建，直接拉取预构建镜像
+
+`deploy.sh` 默认在**服务器上构建**（`vite build` 峰值约 500MB）。内存不够的主机可以改用预构建镜像：
+
+- GitHub Actions（`.github/workflows/build-images.yml`）在 push 到 `main` 时构建 `api` / `web` 并推送到 GHCR；
+- 服务器只负责拉取：
+
+```bash
+bash deploy/deploy.sh --prebuilt                          # 拉取 :latest
+IMAGE_TAG=<commit-sha> bash deploy/deploy.sh --prebuilt   # 拉取指定版本（回滚用）
+
+# 国内拉 ghcr.io 慢时可走镜像源
+IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki \
+  bash deploy/deploy.sh --prebuilt
+```
+
+前置条件：
+
+1. 先触发一次 Actions（push 代码，或在仓库 Actions 页面手动 Run workflow）；
+2. 到 <https://github.com/lishu620?tab=packages> 把两个 Package 的可见性改成 **public**；若保持 private，服务器需先 `docker login ghcr.io -u <用户名>`（用带 `read:packages` 的 PAT）。
+
+镜像名由 `IMAGE_PREFIX` / `IMAGE_TAG` 控制（会写进 `deploy/.env`，也可用环境变量临时覆盖）。
+`--prebuilt` 与 `--no-cache` 互斥。
 
 ---
 
