@@ -325,16 +325,16 @@ bash deploy/deploy.sh --prebuilt
 
 ### 常用参数与环境变量
 
-| 参数 / 变量 | 说明 |
-| --- | --- |
-| `--prebuilt` | 不在服务器构建，`docker compose pull` + `up -d --no-build` |
-| `--no-cache` | 全量重建镜像（与 `--prebuilt` 互斥） |
-| `--skip-seed` | 不写入示例数据 |
-| `--regen-env` | 重新生成 `.env`（⚠️ 会换数据库密码，需先 `docker compose down -v`） |
-| `WEB_HOST_PORT` | 对外端口，默认 `80` |
-| `WEB_BIND_IP` | 绑定的网卡，默认 `0.0.0.0`；宿主 80 被占用时用 `WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081` 只绑回环 |
-| `IMAGE_PREFIX` / `IMAGE_TAG` | 镜像来源与版本，默认 `ghcr.io/lishu620/luotianyi-wiki-*:latest`；国内拉取慢可设 `IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki` |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 后台账号，默认 `admin` + 随机口令（部署结尾打印）；要固定就显式传入 |
+| 参数 / 变量                         | 说明                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--prebuilt`                        | 不在服务器构建，`docker compose pull` + `up -d --no-build`                                                                                          |
+| `--no-cache`                        | 全量重建镜像（与 `--prebuilt` 互斥）                                                                                                                |
+| `--skip-seed`                       | 不写入示例数据                                                                                                                                      |
+| `--regen-env`                       | 重新生成 `.env`（⚠️ 会换数据库密码，需先 `docker compose down -v`）                                                                                 |
+| `WEB_HOST_PORT`                     | 对外端口，默认 `80`                                                                                                                                 |
+| `WEB_BIND_IP`                       | 绑定的网卡，默认 `0.0.0.0`；宿主 80 被占用时用 `WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081` 只绑回环                                                  |
+| `IMAGE_PREFIX` / `IMAGE_TAG`        | 镜像来源与版本，默认 `ghcr.io/lishu620/luotianyi-wiki-*:latest`；国内拉取慢可设 `IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 后台账号，默认 `admin` + 随机口令（部署结尾打印）；要固定就显式传入                                                                                 |
 
 ### 更新与回滚
 
