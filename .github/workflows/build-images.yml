@@ -8,8 +8,7 @@ name: 构建并推送镜像
 #   ghcr.io/<owner>/<repo>-web:latest , :<commit-sha>
 #
 # 用法：服务器上执行 `bash deploy/deploy.sh --prebuilt`
-# 注意：首次运行后请到 https://github.com/<owner>?tab=packages 把两个 Package 设为 public，
-#       否则服务器拉取前需要 `docker login ghcr.io`。
+# 注意：包默认随公开仓库一起可匿名拉取；若改成 private，服务器拉取前需要 `docker login ghcr.io`。
 
 on:
   push:

@@ -293,38 +293,64 @@ pnpm dev:web       # 仅前端（vite）
 
 ---
 
-## 生产部署
+## 部署
 
-已完成 Docker Compose 容器化部署，线上地址：<https://luotianyi.wiki>
+线上地址：<https://luotianyi.wiki>（Cloudflare → 宿主机 Nginx → 本站容器）。
 
-完整的架构说明、运维命令与回滚步骤见 **[`deploy/README.md`](deploy/README.md)**，脚本说明见 [`scripts/deploy/README.md`](scripts/deploy/README.md)。
+架构说明、运维命令、忘记后台口令等详见 **[`deploy/README.md`](deploy/README.md)**。
 
-### 一键部署
+### 方式一：`git clone` + 一键脚本（在服务器上构建）
 
-```powershell
-pnpm deploy            # 构建 → 上传 → 重建镜像 → 重启 → 线上 29 项校验
+```bash
+git clone https://github.com/lishu620/luotianyi-wiki.git
+cd luotianyi-wiki
+bash deploy/deploy.sh
 ```
 
-服务器凭据存放在 `.local/deploy/server.json`（已 gitignore）。
+脚本依次完成：生成 `deploy/.env`（随机密钥）→ 构建镜像 → 启动 `postgres / meilisearch / api / web` → 等待后端就绪 → 写入示例数据 → 打印访问地址与后台账号口令。
+
+### 方式二：预构建镜像（弱性能主机推荐，服务器零构建）
+
+CI 工作流 [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml) 会在 push 到 `main` 时把 `api` / `web` 镜像构建好并推到 GHCR，服务器只负责拉取：
+
+```bash
+git clone https://github.com/lishu620/luotianyi-wiki.git
+cd luotianyi-wiki
+bash deploy/deploy.sh --prebuilt
+```
+
+镜像默认随公开仓库一起**可匿名拉取**（已验证）；若你把它改成 private，服务器需先 `docker login ghcr.io -u <用户名>`（PAT 需带 `read:packages`）。
+
+镜像标签为 `latest` 与 `<commit-sha>`（例如 `1e8e5fd9...`），可用 `IMAGE_TAG` 指定具体版本。
+
+### 常用参数与环境变量
+
+| 参数 / 变量 | 说明 |
+| --- | --- |
+| `--prebuilt` | 不在服务器构建，`docker compose pull` + `up -d --no-build` |
+| `--no-cache` | 全量重建镜像（与 `--prebuilt` 互斥） |
+| `--skip-seed` | 不写入示例数据 |
+| `--regen-env` | 重新生成 `.env`（⚠️ 会换数据库密码，需先 `docker compose down -v`） |
+| `WEB_HOST_PORT` | 对外端口，默认 `80` |
+| `WEB_BIND_IP` | 绑定的网卡，默认 `0.0.0.0`；宿主 80 被占用时用 `WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081` 只绑回环 |
+| `IMAGE_PREFIX` / `IMAGE_TAG` | 镜像来源与版本，默认 `ghcr.io/lishu620/luotianyi-wiki-*:latest`；国内拉取慢可设 `IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki` |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 后台账号，默认 `admin` + 随机口令（部署结尾打印）；要固定就显式传入 |
+
+### 更新与回滚
+
+```bash
+cd <仓库目录> && git pull && bash deploy/deploy.sh --prebuilt   # 更新到 latest
+IMAGE_TAG=<旧 commit sha> bash deploy/deploy.sh --prebuilt      # 回滚到某个版本
+```
 
 ### 部署要点
 
-1. **不在服务器上构建**：服务器只有 1.7GB 内存且同机跑着 MySQL，`vite build` 会触发 OOM。
-   因此前端在本地构建，只上传 2.2MB 静态产物；后端本地 `tsc` 编译后只上传 0.6MB JS，服务器仅执行 `npm install --omit=dev`。
-2. **复用既有 Nginx 入口**：服务器 80 端口已被一个服务于其它站点的 `nginx-proxy` 容器占用，本站不新增对外端口，只绑定 `127.0.0.1:8081` 由其反代，避免影响线上其它业务。
-3. **生产关闭自动建表**：`DB_SYNCHRONIZE=false`，表结构由 `pg_dump` 导出/导入管理。
-4. **密钥全部随机生成**：部署脚本会为 `JWT_SECRET`、`MEILI_MASTER_KEY`、数据库密码生成强随机值写入服务器 `.env`（该文件不纳入版本控制）。
-5. **容器内存上限**：每个服务都设置了 `mem_limit`，防止某天异常增长时拖垮同机其它服务。
-6. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
-
-### 换成自己的服务器
-
-部署脚本里的主机信息集中在两处：
-
-- `.local/deploy/server.json` —— SSH 主机/端口/账号/密码
-- `scripts/deploy/deploy.ps1` 参数 —— `-RemoteDir`（默认 `/home/mlishu/luotianyi-wiki`）、`-Domain`
-
-`docker-compose.yml` 与 `.env.example` 可原样复用，改 `.env` 里的域名与密码即可。
+1. **容器名固定为 `lty-*`**：同一台机器只能跑一套；换目录重建前先 `docker compose down`。
+2. **密钥全部随机生成**：`JWT_SECRET`、`MEILI_MASTER_KEY`、数据库密码由脚本随机生成写入 `deploy/.env`（不纳入版本控制）。
+3. **`DB_SYNCHRONIZE=true`**：由 TypeORM 自动建表/加列，无需手工 migration；若改由 dump 管理表结构，置 `false` 并自行导入。
+4. **容器内存上限**：每个服务都设了 `mem_limit`（meilisearch 为 512m —— 256m 会因容器内存上限被 OOM 重启）。
+5. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
+6. **服务器内存紧张时**：先 `docker compose -f deploy/docker-compose.yml stop` 再构建，或直接用方式二（预构建镜像）。
 
 ---
 
