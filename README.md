@@ -6,6 +6,7 @@
 - 🔐 **后台**：账号密码 + JWT 登录，管理歌曲、外链与介绍页分节
 - 🔎 **搜索**：Meilisearch 优先，服务不可用时自动降级为 PostgreSQL 模糊检索
 - 🌗 **主题**：浅色 / 深色跟随系统，可手动切换（主色取洛天依代表色 `#66CCFF`）
+- 🚀 **部署**：本地（不需要 Docker）`pnpm dev` 开发 → push → GitHub Actions 构建镜像到 GHCR → 服务器 `bash deploy/update.sh` 一条命令更新，失败自动回滚
 
 ---
 
@@ -26,69 +27,23 @@ luotianyi-wiki/
 │  └─ web/                 # Vue3 + Vite 前端
 ├─ packages/
 │  └─ shared/              # 前后端共享的领域模型 / 枚举 / 常量
-├─ docker-compose.yml      # PostgreSQL + Meilisearch
+├─ deploy/                 # 服务器部署：compose / Dockerfile / deploy.sh / update.sh
+├─ docker-compose.yml      # 本地开发用的依赖服务（可选，见「本地开发」）
 └─ package.json            # 根脚本入口
 ```
 
 ---
 
-## 快速开始
+## 本地开发（不需要 Docker）
 
-### 0. 环境要求
+本地只需要 Node.js + pnpm：PostgreSQL 与 Meilisearch 由脚本下载到仓库 `.local/` 目录（无需管理员权限），
+镜像构建与容器运行全部交给 GitHub Actions 与服务器。**本地改代码 → 自检 → push，服务器上一条命令更新**（见「[部署与更新](#部署与更新)」）。
+
+### 1. 环境要求
 
 - Node.js ≥ 20.11（当前验证版本 22）
 - pnpm ≥ 9（`corepack enable pnpm` 或 `npm i -g pnpm`）
-- PostgreSQL 16 与 Meilisearch（见下一步，二选一）
-
-### 1. 启动依赖服务
-
-**方式 A：Docker（推荐）**
-
-```bash
-docker compose up -d
-```
-
-会自动创建：
-
-| 服务        | 地址                    | 凭据                                             |
-| ----------- | ----------------------- | ------------------------------------------------ |
-| PostgreSQL  | `localhost:5432`        | `luotianyi` / `luotianyi`，库名 `luotianyi_wiki` |
-| Meilisearch | `http://localhost:7700` | Master Key `luotianyi_dev_master_key`            |
-
-**方式 B：一键安装本地服务（没有 Docker 时，推荐）**
-
-无需管理员权限，全部装在仓库的 `.local/` 目录里，删掉该目录即可完全卸载。
-
-```bash
-pnpm services:setup    # 下载 PostgreSQL 二进制包与 Meilisearch，并初始化数据库
-pnpm services:start    # 启动两个服务
-pnpm services:stop     # 停止两个服务
-```
-
-`services:setup` 会自动完成：解压 PostgreSQL → `initdb` → 启动并创建 `luotianyi_wiki` 数据库 → 下载 Meilisearch。
-
-**方式 C：手动安装**
-
-1. 安装 PostgreSQL 16 并创建库与用户：
-
-   ```sql
-   CREATE USER luotianyi WITH PASSWORD 'luotianyi';
-   CREATE DATABASE luotianyi_wiki OWNER luotianyi;
-   ```
-
-2. 安装 Meilisearch：从 [Meilisearch 官网](https://www.meilisearch.com/docs/learn/getting_started/installation) 下载 Windows 版并运行：
-
-   ```powershell
-   .\meilisearch.exe --master-key luotianyi_dev_master_key
-   ```
-
-3. 按实际情况修改 `apps/api/.env`。
-
-> 没有 Meilisearch 也能跑：搜索会自动降级为 PostgreSQL 查询，后台「控制台」会显示当前引擎状态。
-
-> 💡 出现 `Request failed with status code 500` 时，几乎都是**后端或数据库没启动**：
-> 5173 端口只有前端在跑，`/api/*` 被代理到 3000 端口却无人响应，Vite 就会返回 500。
-> 依次执行 `pnpm services:start` → `pnpm dev:api` → `pnpm dev:web` 即可恢复。
+- 给 `.local/` 预留约 1GB 磁盘（PostgreSQL 二进制包 + Meilisearch）
 
 ### 2. 安装依赖
 
@@ -96,9 +51,28 @@ pnpm services:stop     # 停止两个服务
 pnpm install
 ```
 
-### 3. 配置环境变量（可选）
+### 3. 一键准备本地依赖服务（PostgreSQL + Meilisearch）
 
-不配置也能跑，默认值与 `docker-compose.yml` 一致。
+无需管理员权限，全部装在仓库的 `.local/` 目录里，删掉该目录即可完全卸载。
+
+```bash
+pnpm services:setup    # 首次执行：下载 PostgreSQL 二进制包与 Meilisearch，并初始化数据库
+pnpm services:start    # 每次开始开发前启动（已在运行会自动跳过）
+pnpm services:stop     # 停止这两个服务
+```
+
+`services:setup` 会自动完成：解压 PostgreSQL → `initdb` → 启动并创建 `luotianyi_wiki` 数据库 → 下载 Meilisearch。
+
+| 服务        | 地址                    | 凭据                                             |
+| ----------- | ----------------------- | ------------------------------------------------ |
+| PostgreSQL  | `127.0.0.1:5432`        | `luotianyi` / `luotianyi`，库名 `luotianyi_wiki` |
+| Meilisearch | `http://127.0.0.1:7700` | Master Key `luotianyi_dev_master_key`            |
+
+> 没有 Meilisearch 也能跑：搜索会自动降级为 PostgreSQL 查询，后台「控制台」会显示当前引擎状态。
+
+### 4. 配置环境变量（可选）
+
+不配置也能跑：代码内置的默认值（`127.0.0.1:5432` / `127.0.0.1:7700`，见 `apps/api/src/config/configuration.ts`）就是上面这套本地服务。
 
 ```bash
 copy apps\api\.env.example apps\api\.env
@@ -117,7 +91,7 @@ copy apps\web\.env.example apps\web\.env
 | `MEILI_ENABLED` / `MEILI_HOST` / `MEILI_MASTER_KEY` | —                                | Meilisearch 配置                     |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD`                 | `admin` / `luotianyi2026`        | 执行 seed 时创建的管理员             |
 
-### 4. 写入示例数据
+### 5. 写入示例数据
 
 ```bash
 pnpm seed          # 首次写入（已有数据会跳过歌曲与外链）
@@ -128,7 +102,7 @@ pnpm seed:force    # 覆盖式重写歌曲与外链
 
 > ⚠️ 示例数据中的歌曲信息与播放量为**演示用内容**，请按官方资料在后台校对后替换。
 
-### 5. 启动开发环境
+### 6. 启动开发环境
 
 ```bash
 pnpm dev           # 同时启动前后端
@@ -148,6 +122,47 @@ pnpm dev:api       # 仅后端（nest --watch）
 pnpm dev:web       # 仅前端（vite）
 ```
 
+> 💡 出现 `Request failed with status code 500` 时，几乎都是**后端或数据库没启动**：
+> 5173 端口只有前端在跑，`/api/*` 被代理到 3000 端口却无人响应，Vite 就会返回 500。
+> 依次执行 `pnpm services:start` → `pnpm dev:api` → `pnpm dev:web` 即可恢复。
+
+### 7. 提交前自检
+
+CI（[`.github/workflows/build-images.yml`](.github/workflows/build-images.yml)）会对每个 PR 与 `main` 提交跑同样两项，先在本地跑一遍能省一次往返：
+
+```bash
+pnpm typecheck
+pnpm build
+```
+
+### 可选：依赖服务改用 Docker
+
+本机装了 Docker 时也可以用它起依赖服务（容器名是 `lty-dev-*`，与服务器上的 `lty-*` 不会互相影响）：
+
+```bash
+pnpm infra:up      # = docker compose up -d（PostgreSQL + Meilisearch）
+pnpm infra:down
+```
+
+### 手动安装依赖服务
+
+不想用 `pnpm services:setup` 时，也可以自己装 PostgreSQL 16 与 Meilisearch：
+
+1. 安装 PostgreSQL 16 并创建库与用户：
+
+   ```sql
+   CREATE USER luotianyi WITH PASSWORD 'luotianyi';
+   CREATE DATABASE luotianyi_wiki OWNER luotianyi;
+   ```
+
+2. 安装 Meilisearch：从 [Meilisearch 官网](https://www.meilisearch.com/docs/learn/getting_started/installation) 下载 Windows 版并运行：
+
+   ```powershell
+   .\meilisearch.exe --master-key luotianyi_dev_master_key
+   ```
+
+3. 按实际情况修改 `apps/api/.env`。
+
 ---
 
 ## 常用脚本
@@ -161,11 +176,20 @@ pnpm dev:web       # 仅前端（vite）
 | `pnpm typecheck`                                                  | 全量类型检查                                                      |
 | `pnpm seed` / `pnpm seed:force`                                   | 写入 / 覆盖示例数据                                               |
 | `pnpm reindex`                                                    | 重建 Meilisearch 全量索引                                         |
-| `pnpm infra:up` / `pnpm infra:down`                               | 启停 Docker 依赖服务                                              |
+| `pnpm infra:up` / `pnpm infra:down`                               | 启停 Docker 依赖服务（本机装了 Docker 时，容器名 `lty-dev-*`）     |
 | `pnpm services:setup`                                             | 免安装方式下载并初始化 PostgreSQL + Meilisearch（写入 `.local/`） |
 | `pnpm services:start` / `pnpm services:stop`                      | 启停 `.local/` 中的 PostgreSQL 与 Meilisearch                     |
-| `pnpm deploy`                                                     | 一键部署到服务器（构建 → 上传 → 重启容器 → 线上校验）             |
-| `pnpm deploy:build` / `pnpm deploy:upload` / `pnpm deploy:verify` | 分步执行部署                                                      |
+
+**服务器上执行**（不在本地跑，完整流程见「[部署与更新](#部署与更新)」）：
+
+| 命令                                   | 作用                                          |
+| -------------------------------------- | --------------------------------------------- |
+| `bash deploy/deploy.sh --prebuilt`     | 首次部署 / 需要全量重建时                      |
+| `bash deploy/update.sh`                | 日常更新（pull 代码 → 拉镜像 → 重建 → 健康检查） |
+| `bash deploy/update.sh --tag <commit>` | 更新 / 回滚到指定提交                          |
+
+> 另外还有一套**备用**的「本地构建 + 上传」部署脚本，走 SSH 直传产物、不依赖 GitHub Actions：
+> `pnpm deploy` / `pnpm deploy:build` / `pnpm deploy:upload` / `pnpm deploy:verify`，见 [`scripts/deploy/README.md`](scripts/deploy/README.md)。
 
 ---
 
@@ -293,25 +317,27 @@ pnpm dev:web       # 仅前端（vite）
 
 ---
 
-## 部署
+## 部署与更新
 
 线上地址：<https://luotianyi.wiki>（Cloudflare → 宿主机 Nginx → 本站容器）。
 
-架构说明、运维命令、忘记后台口令等详见 **[`deploy/README.md`](deploy/README.md)**。
+### 职责分离：本地只开发，服务器只运行
 
-### 方式一：`git clone` + 一键脚本（在服务器上构建）
-
-```bash
-git clone https://github.com/lishu620/luotianyi-wiki.git
-cd luotianyi-wiki
-bash deploy/deploy.sh
+```
+① 本地开发                ② git push       ③ GitHub Actions                 ④ 服务器
+pnpm dev（无 Docker） ─────────────────► 校验 → 构建 api/web 镜像 → GHCR ──► bash deploy/update.sh
+                                          （自动，无需任何密钥）              （拉镜像 → 重建容器）
 ```
 
-脚本依次完成：生成 `deploy/.env`（随机密钥）→ 构建镜像 → 启动 `postgres / meilisearch / api / web` → 等待后端就绪 → 写入示例数据 → 打印访问地址与后台账号口令。
+- **本地**：只写代码、只跑 `pnpm dev`，不需要 Docker，也不需要服务器凭据。
+- **GitHub Actions**：每个 `main` 提交自动校验（`typecheck` + `build`）并构建镜像推到 GHCR，标签为 `latest` 与 `<commit-sha>`。
+- **服务器**：只 `docker pull` 已经构建好的镜像并重建容器，不在自己机器上构建前端/后端（1.7G 内存的小机器也够用）。
+- 服务器在内网也没关系：**由服务器主动拉取**，GitHub 不需要能连上服务器。
 
-### 方式二：预构建镜像（弱性能主机推荐，服务器零构建）
+### 首次部署（新服务器，只做一次）
 
-CI 工作流 [`.github/workflows/build-images.yml`](.github/workflows/build-images.yml) 会在 push 到 `main` 时把 `api` / `web` 镜像构建好并推到 GHCR，服务器只负责拉取：
+前置：服务器装好 Docker 与 compose 插件，能访问 github.com 与 ghcr.io，且该提交已有一次成功的 CI 构建
+（GitHub → Actions 里「CI（校验 → 构建并推送镜像）」变绿，或手动 Run workflow 触发一次）。
 
 ```bash
 git clone https://github.com/lishu620/luotianyi-wiki.git
@@ -319,15 +345,73 @@ cd luotianyi-wiki
 bash deploy/deploy.sh --prebuilt
 ```
 
-镜像默认随公开仓库一起**可匿名拉取**（已验证）；若你把它改成 private，服务器需先 `docker login ghcr.io -u <用户名>`（PAT 需带 `read:packages`）。
+脚本依次完成：生成 `deploy/.env`（随机密钥）→ 拉取镜像 → 启动 `postgres / meilisearch / api / web` → 等待后端就绪 → 写入示例数据 → 打印访问地址与后台账号口令。
 
-镜像标签为 `latest` 与 `<commit-sha>`（例如 `1e8e5fd9...`），可用 `IMAGE_TAG` 指定具体版本。
+宿主 80 端口已被其它服务占用时（本站线上就是这么跑的）：
 
-### 常用参数与环境变量
+```bash
+WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 bash deploy/deploy.sh --prebuilt
+```
+
+### 更新线上（日常流程）
+
+四步：本地自检 → push → 等 CI 变绿 → 服务器一条命令。
+
+```bash
+# ① 本地：改完代码先自检（CI 跑的是同样两项，本地先跑一遍省一次往返）
+pnpm typecheck
+pnpm build
+
+# ② 提交并推送
+git add -A
+git commit -m "feat: ..."
+git push
+
+# ③ 等 CI 变绿：GitHub → Actions 页面，或本地执行 gh run watch
+
+# ④ 服务器：一条命令更新
+ssh <服务器>
+cd /home/mlishu/luotianyi-wiki
+bash deploy/update.sh
+```
+
+`update.sh` 依次做：`git pull` → 解析这次提交对应的镜像版本 → `docker compose pull` → 重建 `api` / `web` → 等后端就绪 → 检查首页与 `/api` 反代 → **任一步失败自动回滚到上一个版本**。
+
+| 命令                                   | 作用                                                  |
+| -------------------------------------- | ----------------------------------------------------- |
+| `bash deploy/update.sh`                | 更新到当前代码对应的版本（日常用这个）                |
+| `bash deploy/update.sh --tag latest`   | 更新到 CI 最近一次构建的镜像（不跟随提交）            |
+| `bash deploy/update.sh --tag <sha>`    | 更新 / 回滚到指定提交                                 |
+| `bash deploy/update.sh --list`         | 列出最近几个提交，以及对应镜像是否已发布              |
+| `bash deploy/update.sh --no-pull-code` | 不动代码，只按 `deploy/.env` 里的版本重建容器         |
+| `bash deploy/update.sh --verify`       | 更新后再跑一遍全站校验（29 项断言，需服务器有 python3） |
+| `bash deploy/update.sh --no-rollback`  | 失败时不自动回滚（排查问题时用）                      |
+
+### 回滚
+
+镜像标签就是提交号，所以回滚只是换一个版本号（镜像仍在 GHCR 上，秒级完成）：
+
+```bash
+git log --oneline -10                        # 找到要回滚到的提交
+bash deploy/update.sh --tag <commit-sha>
+```
+
+### 备用：不走 GitHub，本地构建 + 上传
+
+服务器不便访问 GitHub / GHCR 时，可以用 `pnpm deploy`（本地构建产物 → SSH 上传 → 服务器重建容器 → 线上校验）。
+这不是日常流程，细节见 [`scripts/deploy/README.md`](scripts/deploy/README.md)。
+
+### 更多运维内容
+
+架构图、忘记后台口令、服务器内存紧张时的处理等，见 **[`deploy/README.md`](deploy/README.md)**。
+
+### `deploy.sh` 常用参数与环境变量
+
+> 日常更新用 `update.sh`（参数见上一节）；`deploy.sh` 用于首次部署 / 需要全量重建时。
 
 | 参数 / 变量                         | 说明                                                                                                                                                |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--prebuilt`                        | 不在服务器构建，`docker compose pull` + `up -d --no-build`                                                                                          |
+| `--prebuilt`                        | 不在服务器构建，`docker compose pull` + `up -d --no-build`（首次部署推荐）                                                                          |
 | `--no-cache`                        | 全量重建镜像（与 `--prebuilt` 互斥）                                                                                                                |
 | `--skip-seed`                       | 不写入示例数据                                                                                                                                      |
 | `--regen-env`                       | 重新生成 `.env`（⚠️ 会换数据库密码，需先 `docker compose down -v`）                                                                                 |
@@ -336,21 +420,19 @@ bash deploy/deploy.sh --prebuilt
 | `IMAGE_PREFIX` / `IMAGE_TAG`        | 镜像来源与版本，默认 `ghcr.io/lishu620/luotianyi-wiki-*:latest`；国内拉取慢可设 `IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki` |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 后台账号，默认 `admin` + 随机口令（部署结尾打印）；要固定就显式传入                                                                                 |
 
-### 更新与回滚
-
-```bash
-cd <仓库目录> && git pull && bash deploy/deploy.sh --prebuilt   # 更新到 latest
-IMAGE_TAG=<旧 commit sha> bash deploy/deploy.sh --prebuilt      # 回滚到某个版本
-```
+> `update.sh` 会把当前版本写回 `deploy/.env` 的 `IMAGE_TAG`，所以之后任何 `docker compose up -d` 都只会用这个版本；
+> 想重新跟随 CI 的最新镜像，执行 `bash deploy/update.sh --tag latest`。
 
 ### 部署要点
 
-1. **容器名固定为 `lty-*`**：同一台机器只能跑一套；换目录重建前先 `docker compose down`。
+1. **容器名固定为 `lty-*`**：同一台机器只能跑一套；换目录重建前先 `docker compose down`。（本地 Docker 依赖服务用的是 `lty-dev-*`，两者不会互相影响。）
 2. **密钥全部随机生成**：`JWT_SECRET`、`MEILI_MASTER_KEY`、数据库密码由脚本随机生成写入 `deploy/.env`（不纳入版本控制）。
-3. **`DB_SYNCHRONIZE=true`**：由 TypeORM 自动建表/加列，无需手工 migration；若改由 dump 管理表结构，置 `false` 并自行导入。
-4. **容器内存上限**：每个服务都设了 `mem_limit`（meilisearch 为 512m —— 256m 会因容器内存上限被 OOM 重启）。
-5. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
-6. **服务器内存紧张时**：先 `docker compose -f deploy/docker-compose.yml stop` 再构建，或直接用方式二（预构建镜像）。
+3. **`deploy/.env` 里的 `IMAGE_TAG` = 当前线上版本**：`deploy.sh` / `update.sh` 都会写回，重启容器不会悄悄换版本。
+4. **`DB_SYNCHRONIZE=true`**：由 TypeORM 自动建表/加列，无需手工 migration；若改由 dump 管理表结构，置 `false` 并自行导入。
+5. **容器内存上限**：每个服务都设了 `mem_limit`（meilisearch 为 512m —— 256m 会因容器内存上限被 OOM 重启）。
+6. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
+7. **`update.sh` 找不到镜像**：说明那次提交只改了文档（CI 按路径过滤，不会构建镜像），脚本会自动往前找最近的可用版本；如果是 CI 还在构建，脚本会重试 6 次 × 20 秒，仍失败就等 Actions 变绿后再执行。
+8. **服务器内存紧张时**：别在服务器上构建（不要用不带 `--prebuilt` 的 `deploy.sh`）；确实要在服务器构建时，先 `docker compose -f deploy/docker-compose.yml stop` 再执行。
 
 ---
 

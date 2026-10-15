@@ -1,6 +1,10 @@
-# 部署与运维脚本
+# 备用部署脚本（本地构建 + SSH 上传）
 
-> 完整的部署架构与运维说明见 [`deploy/README.md`](../deploy/README.md)
+> **日常部署/更新走 CI + 服务器一条命令**，见仓库根 [README「部署与更新」](../../README.md) 与 [`deploy/README.md`](../deploy/README.md)：
+> 本地 `pnpm dev` 开发 → push → GitHub Actions 构建镜像到 GHCR → 服务器 `bash deploy/update.sh`。
+>
+> 这里的一套是**备用方案**：服务器不便访问 GitHub / GHCR 时，在本地构建好产物再 SSH 上传（本地只需 Node.js + Python，不需要 Docker）。
+> 完整的部署架构与运维说明见 [`deploy/README.md`](../deploy/README.md)。
 
 ## 目录内容
 
@@ -14,13 +18,15 @@
 
 ## 常用命令
 
+> ⚠️ 这条流程上传的是早期 bundle 布局（compose 在仓库根目录），与 git clone 得到的 `deploy/docker-compose.yml` 布局不是同一套，**不要混用**，否则会互相覆盖。
+
 ```powershell
 pnpm deploy            # 一键部署 + 校验
 pnpm deploy:build      # 只构建打包
 pnpm deploy:upload     # 只上传
 pnpm deploy:verify     # 只校验线上
 
-# 直接执行远程命令
+# 直接执行远程命令（bundle 布局下 compose 在仓库根目录）
 py scripts/deploy/remote.py info
 py scripts/deploy/remote.py run "docker compose -f /home/mlishu/luotianyi-wiki/docker-compose.yml ps"
 py scripts/deploy/remote.py put 本地文件 远端路径

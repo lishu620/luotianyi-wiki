@@ -1,13 +1,16 @@
-name: 构建并推送镜像
+name: CI（校验 → 构建并推送镜像）
 
-# 目的：把 api / web 镜像在 GitHub 的机器上构建好推到 GHCR，
-#       性能较弱（或内存不足）的服务器只需 `docker compose pull` 即可运行，无需本地构建。
+# 这条流水线是「本地开发」与「服务器部署」之间唯一的桥梁：
+#   1) 校验  ：push / PR 都跑 typecheck + build，保证 main 随时可部署
+#   2) 构建  ：把 api / web 镜像在 GitHub 的机器上构建好推到 GHCR（服务器零构建，弱性能主机也能跑）
+#   3) 交给服务器：在服务器上执行一条命令更新或回滚
+#        bash deploy/update.sh                     # 更新到当前代码对应的版本
+#        bash deploy/update.sh --tag <commit-sha>  # 更新 / 回滚到指定版本
 #
 # 产物：
 #   ghcr.io/<owner>/<repo>-api:latest , :<commit-sha>
 #   ghcr.io/<owner>/<repo>-web:latest , :<commit-sha>
 #
-# 用法：服务器上执行 `bash deploy/deploy.sh --prebuilt`
 # 注意：包默认随公开仓库一起可匿名拉取；若改成 private，服务器拉取前需要 `docker login ghcr.io`。
 
 on:
@@ -24,6 +27,15 @@ on:
       - "pnpm-workspace.yaml"
       - ".dockerignore"
       - ".github/workflows/build-images.yml"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "deploy/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       tag:
@@ -34,8 +46,44 @@ env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # 只对 PR 取消旧运行；main 上的构建必须跑完，否则那次提交就没有可部署的镜像
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  validate:
+    name: 校验（typecheck + build）
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm typecheck
+
+      - name: 全量构建
+        run: pnpm build
+
   build:
+    name: 构建并推送 ${{ matrix.name }}
+    needs: validate
+    # PR 只做校验，不推镜像
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,3 +138,5 @@ jobs:
           echo "${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:latest" >> "$GITHUB_STEP_SUMMARY"
           echo "${{ env.IMAGE_PREFIX }}-${{ matrix.name }}:${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo "服务器更新：\`bash deploy/update.sh --tag ${{ github.sha }}\`（或直接 \`bash deploy/update.sh\`）" >> "$GITHUB_STEP_SUMMARY"

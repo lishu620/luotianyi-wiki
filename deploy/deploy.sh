@@ -10,11 +10,13 @@
 #            也可用环境变量指定，例：ADMIN_PASSWORD=xxxx bash deploy/deploy.sh
 #
 #  用法（在仓库根目录执行）：
-#    bash deploy/deploy.sh                 # 首次部署 / 更新（在服务器上构建，增量）
+#    bash deploy/deploy.sh                 # 首次部署（在服务器上构建，增量）
 #    bash deploy/deploy.sh --prebuilt      # 不在本机构建，直接拉取已发布镜像（弱性能主机推荐）
 #    bash deploy/deploy.sh --no-cache      # 不使用构建缓存，全量重建
 #    bash deploy/deploy.sh --skip-seed     # 不写入示例数据
 #    bash deploy/deploy.sh --regen-env     # 重新生成 .env（注意：改密钥后需清空数据卷）
+#
+#  日常更新请用 bash deploy/update.sh：只拉取 CI 构建好的镜像，带健康检查与自动回滚。
 #
 #  可用环境变量：WEB_HOST_PORT / WEB_BIND_IP / IMAGE_PREFIX / IMAGE_TAG
 #                ADMIN_USERNAME / ADMIN_PASSWORD
