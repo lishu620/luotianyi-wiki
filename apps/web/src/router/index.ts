@@ -44,6 +44,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '群聊导航' },
       },
       {
+        path: 'emoji',
+        name: 'emoji',
+        component: () => import('@/views/EmojiPlazaView.vue'),
+        meta: { title: '表情广场' },
+      },
+      {
         path: 'cn',
         name: 'cn',
         component: () => import('@/views/CnPlazaView.vue'),
@@ -115,6 +121,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-groups',
         component: () => import('@/views/admin/GroupsAdminView.vue'),
         meta: { title: '群聊管理', requiresAuth: true },
+      },
+      {
+        path: 'emoji',
+        name: 'admin-emoji',
+        component: () => import('@/views/admin/EmojiAdminView.vue'),
+        meta: { title: '表情广场管理', requiresAuth: true },
       },
       {
         path: 'profile',

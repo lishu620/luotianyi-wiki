@@ -12,6 +12,7 @@ const navItems = [
   { name: 'songs', label: '歌曲库', icon: 'Headset' },
   { name: 'links', label: '同好导航', icon: 'Connection' },
   { name: 'groups', label: '群聊导航', icon: 'ChatDotRound' },
+  { name: 'emoji', label: '表情广场', icon: 'MagicStick' },
   { name: 'cn', label: '同好广场', icon: 'Postcard' },
   { name: 'stats', label: '数据统计', icon: 'DataAnalysis' },
 ];
@@ -67,7 +68,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
       </router-link>
 
       <!-- 桌面导航 -->
-      <nav class="ml-4 hidden items-center gap-1 lg:flex">
+      <nav class="ml-4 hidden items-center gap-1 xl:flex">
         <router-link
           v-for="item in navItems"
           :key="item.name"
@@ -126,7 +127,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
           {{ auth.user?.username ?? '管理' }}
         </el-button>
 
-        <el-button class="lg:hidden" text circle @click="mobileOpen = !mobileOpen">
+        <el-button class="xl:hidden" text circle @click="mobileOpen = !mobileOpen">
           <el-icon :size="18"><component :is="mobileOpen ? 'Close' : 'Menu'" /></el-icon>
         </el-button>
       </div>
@@ -141,7 +142,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll));
     >
       <nav
         v-if="mobileOpen"
-        class="lty-glass border-t border-ink-200/60 lg:hidden dark:border-ink-800"
+        class="lty-glass border-t border-ink-200/60 xl:hidden dark:border-ink-800"
       >
         <div class="lty-container grid gap-1 py-3">
           <router-link

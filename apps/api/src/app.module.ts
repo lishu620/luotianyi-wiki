@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { AclModule } from './modules/acl/acl.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CnModule } from './modules/cn/cn.module';
+import { EmojiModule } from './modules/emoji/emoji.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { LinksModule } from './modules/links/links.module';
 import { ProfileModule } from './modules/profile/profile.module';
@@ -49,6 +50,7 @@ import { UsersModule } from './modules/users/users.module';
     SongsModule,
     LinksModule,
     GroupsModule,
+    EmojiModule,
     ProfileModule,
     SongRequestsModule,
     CnModule,

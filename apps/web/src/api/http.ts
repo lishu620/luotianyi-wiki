@@ -85,6 +85,11 @@ http.interceptors.response.use(
 
 /** 发起请求并自动解包 { code, message, data } 信封。 */
 export async function request<T>(config: AxiosRequestConfig): Promise<T> {
+    // 表单上传不能沿用默认的 application/json，否则 axios 会把 FormData 序列化为 JSON
+    if (config.data instanceof FormData) {
+        config.headers = { ...(config.headers ?? {}), 'Content-Type': 'multipart/form-data' };
+    }
+
     const response = await http.request<ApiEnvelope<T>>(config);
     const body = response.data;
 

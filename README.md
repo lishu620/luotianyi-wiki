@@ -2,8 +2,9 @@
 
 虚拟歌手**洛天依**的资料站：介绍角色、管理她的歌，并把同好制作的页面整理成一套可以一键跳转的导航。
 
-- 🌐 **前台**：首页 / 洛天依介绍 / 歌曲库 / 歌曲详情 / 同好导航 / 群聊导航 / 数据统计
-- 🔐 **后台**：账号密码 + JWT 登录，管理歌曲、外链与介绍页分节
+- 🌐 **前台**：首页 / 洛天依介绍 / 歌曲库 / 歌曲详情 / 同好导航 / 群聊导航 / 表情广场 / 数据统计
+- 🔐 **后台**：账号密码 + JWT 登录，管理歌曲、外链、群聊、表情包与介绍页分节
+- 🖼️ **表情广场**：上传自动压缩为 WebP，支持分组、命名、标签、文字水印与 dHash 以图搜图
 - 🔎 **搜索**：Meilisearch 优先，服务不可用时自动降级为 PostgreSQL 模糊检索
 - 🌗 **主题**：浅色 / 深色跟随系统，可手动切换（主色取洛天依代表色 `#66CCFF`）
 - 🚀 **部署**：本地（不需要 Docker）`pnpm dev` 开发 → push → GitHub Actions 构建镜像到 GHCR → 服务器 `bash deploy/update.sh` 一条命令更新，失败自动回滚
@@ -16,6 +17,7 @@
 | ------ | ------------------------------------------------------------------------------------- |
 | 前端   | Vue 3 + Vite + TypeScript、Element Plus + Tailwind CSS v4、Pinia、Vue Router、ECharts |
 | 后端   | NestJS 11 + Fastify、TypeORM、class-validator、Passport JWT、Swagger                  |
+| 图片   | Sharp（压缩为 WebP、SVG 文字水印、dHash 感知哈希）                                    |
 | 数据库 | PostgreSQL 16                                                                         |
 | 搜索   | Meilisearch                                                                           |
 | 工程   | pnpm workspace（monorepo）+ 共享类型包                                                |
@@ -124,7 +126,7 @@ pnpm dev:web       # 仅前端（vite）
 
 > 💡 出现 `Request failed with status code 500` 时，几乎都是**后端或数据库没启动**：
 > 5173 端口只有前端在跑，`/api/*` 被代理到 3000 端口却无人响应，Vite 就会返回 500。
-> 依次执行 `pnpm services:start` → `pnpm dev:api` → `pnpm dev:web` 即可恢复。
+> 依次执行 `pnpm services:start` → `pnpm dev` 即可恢复（`pnpm dev` 会同时启动前后端）。
 
 ### 7. 提交前自检
 
@@ -219,6 +221,10 @@ pnpm infra:down
 | GET  | `/api/cn/heart`                           | 兴趣推荐（按标签重合度）                                                                                    |
 | GET  | `/api/cn/filters`                         | 广场筛选项（热门兴趣 / 地区）                                                                               |
 | GET  | `/api/cn/:id`                             | 个人介绍详情（联系方式需互相心动才返回）                                                                    |
+| GET  | `/api/emoji/packs`                        | 表情包分页列表（`keyword`/`category`/`sortBy`/`order`/`page`/`pageSize`）                                   |
+| GET  | `/api/emoji/packs/:id`                    | 表情包详情（含全部表情）                                                                                    |
+| GET  | `/api/emoji/categories` · `/api/emoji/stats` | 分类数量 / 表情包与表情总数                                                                              |
+| POST | `/api/emoji/search/image`                 | 以图搜图（`multipart/form-data`，字段 `file`），返回相似表情与所属表情包                                    |
 | GET  | `/api/stats`                              | 统计大屏聚合数据                                                                                            |
 | GET  | `/api/search`                             | 聚合搜索（歌曲 + 外链）                                                                                     |
 | GET  | `/api/search/songs` · `/api/search/links` | 分类型检索                                                                                                  |
@@ -228,7 +234,7 @@ pnpm infra:down
 
 ### 需登录（`Authorization: Bearer <token>`）
 
-`/api/admin/songs`、`/api/admin/links`、`/api/admin/groups`、`/api/admin/profile` 的增删改查，`POST /api/search/reindex`，以及以下个人介绍接口：
+`/api/admin/songs`、`/api/admin/links`、`/api/admin/groups`、`/api/admin/emoji`、`/api/admin/profile` 的增删改查，`POST /api/search/reindex`，以及以下个人介绍接口：
 
 | 方法    | 路径                      | 说明                                             |
 | ------- | ------------------------- | ------------------------------------------------ |
@@ -240,8 +246,9 @@ pnpm infra:down
 ### 权限与角色（RBAC）
 
 - **自定义角色 + 权限矩阵**：在后台「角色权限」里自由组合权限，在「用户管理」里给用户分配角色。
-- 权限按模块划分：`song` / `link` / `group` / `cn` / `profile` / `user` / `role` / `system`，动作级粒度（如 `song.update.own`、`song.update.any`、`song.approve`）。
-- **归属**：歌曲 / 外链 / 群聊都有创建者；用户可发布与修改自己的内容，越权修改会被拒绝。
+- 权限按模块划分：`song` / `link` / `group` / `emoji` / `cn` / `profile` / `user` / `role` / `system`，动作级粒度（如 `song.update.own`、`song.update.any`、`song.approve`）。
+- **归属**：歌曲 / 外链 / 群聊 / 表情包都有创建者；用户可发布与修改自己的内容，越权修改会被拒绝。
+- **注册用户默认权限**：`emoji.create` / `emoji.update.own` / `emoji.delete.own`，登录后即可创建并管理自己的表情包。
 - **歌曲修改审批**：非本人编辑歌曲 → 生成「修改申请」，由原投稿人或有 `song.approve` 权限的管理员在「修改申请」中通过/驳回，通过后自动写回歌曲。
 - 内置「超级管理员」角色（`*` 全部权限，不可删除）；预设「站点管理员 / 内容编辑 / 投稿用户」可直接使用。
 
@@ -275,6 +282,28 @@ pnpm infra:down
 
 ---
 
+## 表情广场
+
+「表情广场」用来收集与洛天依相关的表情包。前台 `/emoji` 浏览、筛选与以图搜图；登录后可在 `/admin/emoji` 创建表情包并上传表情。
+
+- **压缩存储**：上传的 JPG / PNG / WebP / GIF / AVIF / TIFF 会经 Sharp 统一转为 WebP，最长边默认 1080px、质量 82，动图保留全部帧。
+- **管理能力**：表情包分组（分类 / 标签）、改名、排序、设为封面、批量删除；单张表情可重命名、改标签、调排序、删除。
+- **水印**：可选文字水印，支持 5 个位置与不透明度。系统同时保留「无水印底图」和「展示图」，因此可以随时更换或移除水印，不会反复压缩导致画质下降。
+- **以图搜图**：所有表情在入库时计算 64 位 dHash；搜索时把查询图按同样规则压缩后计算哈希，与已发布表情比对汉明距离，按表情包聚合返回最相似结果。全程本地计算，不调用第三方服务。
+- **权限与隔离**：公开接口只返回 `published` 表情包；注册用户默认只能看到和管理自己创建的表情包，拥有 `emoji.update.any` / `emoji.delete.any` 的管理员可管理全部内容。
+- **升级提示**：从旧版本升级后执行一次 `pnpm seed`（生产：`docker compose -f deploy/docker-compose.yml exec -T api node dist/database/seed.js`）即可给内置预设角色补齐 `emoji.*` 权限；也可以在后台「角色权限」里手动勾选。
+- **存储位置**：本地开发默认 `apps/api/uploads/`；生产环境通过 `UPLOAD_DIR=/app/uploads` 挂载到 Docker 持久卷 `uploads-data`。以下环境变量可调：
+
+| 变量                        | 默认值  | 说明                                 |
+| --------------------------- | ------- | ------------------------------------ |
+| `UPLOAD_DIR`                | `uploads` | 图片存储根目录（相对后端工作目录） |
+| `UPLOAD_MAX_MB`             | `12`      | 单张图片最大体积                   |
+| `EMOJI_MAX_DIMENSION`       | `1080`    | 压缩后最长边（128–2048）           |
+| `EMOJI_WEBP_QUALITY`        | `82`      | WebP 质量（40–100）                |
+| `EMOJI_SEARCH_MAX_DISTANCE` | `12`      | 以图搜图最大汉明距离（0–64）       |
+
+---
+
 ## 搜索降级策略
 
 ```
@@ -299,6 +328,8 @@ pnpm infra:down
 | `community_groups`     | 中V群聊导航：群名 / QQ 群号 / 栏目 / 活跃度 / 备注 / 排序 / 状态                                                               |
 | `cn_profiles`          | 个人介绍卡：圈名 / 头像 / B 站 UID / 卡面款式 / 性别 / 年龄 / 地区 / 性格 / 兴趣标签 / 想找的搭子 / 用途 / 联系方式 / 展示状态 |
 | `cn_likes`             | 心动关系：`fromUserId` → `toUserId`，唯一约束，互为记录即「互相心动」                                                          |
+| `emoji_packs`          | 表情包：名称 / 分类 / 标签 / 封面 / 状态 / 水印默认配置 / 归属人 / 排序                                                        |
+| `emoji_images`         | 表情：所属表情包 / 名称 / 标签 / 底图与展示图路径 / 尺寸 / 体积 / dHash / 水印文字 / 排序                                      |
 | `roles`                | 自定义角色：名称 / 描述 / 权限矩阵（`'*'` 为全部权限）/ 是否内置                                                               |
 | `song_change_requests` | 歌曲修改申请：目标歌曲 / 申请人 / 变更内容 / 原因 / 审批状态与结论                                                             |
 | `profile_sections`     | 介绍页分节：`hero`、`basic`、`story`、`voice`、`gallery`、`achievement`，含 Markdown 正文与 JSON 结构化数据                    |
@@ -429,10 +460,11 @@ bash deploy/update.sh --tag <commit-sha>
 2. **密钥全部随机生成**：`JWT_SECRET`、`MEILI_MASTER_KEY`、数据库密码由脚本随机生成写入 `deploy/.env`（不纳入版本控制）。
 3. **`deploy/.env` 里的 `IMAGE_TAG` = 当前线上版本**：`deploy.sh` / `update.sh` 都会写回，重启容器不会悄悄换版本。
 4. **`DB_SYNCHRONIZE=true`**：由 TypeORM 自动建表/加列，无需手工 migration；若改由 dump 管理表结构，置 `false` 并自行导入。
-5. **容器内存上限**：每个服务都设了 `mem_limit`（meilisearch 为 512m —— 256m 会因容器内存上限被 OOM 重启）。
-6. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
-7. **`update.sh` 找不到镜像**：说明那次提交只改了文档（CI 按路径过滤，不会构建镜像），脚本会自动往前找最近的可用版本；如果是 CI 还在构建，脚本会重试 6 次 × 20 秒，仍失败就等 Actions 变绿后再执行。
-8. **服务器内存紧张时**：别在服务器上构建（不要用不带 `--prebuilt` 的 `deploy.sh`）；确实要在服务器构建时，先 `docker compose -f deploy/docker-compose.yml stop` 再执行。
+5. **容器内存上限**：每个服务都设了 `mem_limit`（meilisearch 为 512m —— 256m 会因容器内存上限被 OOM 重启；api 为 480m 以容纳 Sharp 图片处理）。
+6. **表情图片持久化**：生产环境把 `uploads-data` 卷挂载到 api 容器的 `/app/uploads`；`docker compose down -v` 会连同数据库与表情图片一起删除，操作前注意备份。
+7. **`@luotianyi/shared` 的处理**：容器内通过 `file:./shared` 链接本地编译产物，无需发布到 npm。
+8. **`update.sh` 找不到镜像**：说明那次提交只改了文档（CI 按路径过滤，不会构建镜像），脚本会自动往前找最近的可用版本；如果是 CI 还在构建，脚本会重试 6 次 × 20 秒，仍失败就等 Actions 变绿后再执行。
+9. **服务器内存紧张时**：别在服务器上构建（不要用不带 `--prebuilt` 的 `deploy.sh`）；确实要在服务器构建时，先 `docker compose -f deploy/docker-compose.yml stop` 再执行。
 
 ---
 

@@ -176,6 +176,130 @@ export interface LinkQuery {
 }
 
 /* ------------------------------------------------------------------ */
+/* 表情广场                                                            */
+/* ------------------------------------------------------------------ */
+
+export const EMOJI_CATEGORIES = ['tianyi', 'reaction', 'text', 'cute', 'other'] as const;
+export type EmojiCategory = (typeof EMOJI_CATEGORIES)[number];
+
+export const EMOJI_CATEGORY_LABELS: Record<EmojiCategory, string> = {
+  tianyi: '天依相关',
+  reaction: '表情反应',
+  text: '文字梗',
+  cute: '可爱萌图',
+  other: '其他表情',
+};
+
+export const EMOJI_CATEGORY_ICONS: Record<EmojiCategory, string> = {
+  tianyi: 'Star',
+  reaction: 'MagicStick',
+  text: 'ChatLineSquare',
+  cute: 'Sunny',
+  other: 'Picture',
+};
+
+export const EMOJI_PACK_STATUSES = ['published', 'draft', 'private'] as const;
+export type EmojiPackStatus = (typeof EMOJI_PACK_STATUSES)[number];
+
+export const EMOJI_PACK_STATUS_LABELS: Record<EmojiPackStatus, string> = {
+  published: '公开',
+  draft: '草稿',
+  private: '仅自己可见',
+};
+
+export const EMOJI_WATERMARK_POSITIONS = [
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+  'center',
+] as const;
+export type EmojiWatermarkPosition = (typeof EMOJI_WATERMARK_POSITIONS)[number];
+
+export const EMOJI_WATERMARK_POSITION_LABELS: Record<EmojiWatermarkPosition, string> = {
+  'top-left': '左上角',
+  'top-right': '右上角',
+  'bottom-left': '左下角',
+  'bottom-right': '右下角',
+  center: '居中',
+};
+
+export const EMOJI_SORT_FIELDS = ['updatedAt', 'createdAt', 'name', 'imageCount'] as const;
+export type EmojiSortField = (typeof EMOJI_SORT_FIELDS)[number];
+
+export interface EmojiImage {
+  id: string;
+  packId: string;
+  name: string;
+  tags: string[];
+  /** 相对上传目录的存储路径 */
+  storageKey: string;
+  /** 可直接访问的图片地址 */
+  url: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  fileSize: number;
+  originalName: string | null;
+  /** 64 位感知哈希（dHash）的十六进制表示，用于以图搜图 */
+  hash: string;
+  /** 已烧录的水印文字；为空表示无水印 */
+  watermarkText: string | null;
+  ownerId: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmojiPack {
+  id: string;
+  name: string;
+  description: string | null;
+  category: EmojiCategory;
+  tags: string[];
+  coverImageId: string | null;
+  coverUrl: string | null;
+  status: EmojiPackStatus;
+  watermarkEnabled: boolean;
+  watermarkText: string | null;
+  watermarkPosition: EmojiWatermarkPosition;
+  watermarkOpacity: number;
+  ownerId: string | null;
+  ownerName?: string | null;
+  imageCount: number;
+  sortOrder: number;
+  images?: EmojiImage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmojiPackQuery {
+  keyword?: string;
+  category?: EmojiCategory;
+  status?: EmojiPackStatus;
+  sortBy?: EmojiSortField;
+  order?: SortOrder;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface EmojiImageSearchMatch {
+  distance: number;
+  similarity: number;
+  image: EmojiImage;
+  pack: EmojiPack;
+}
+
+export interface EmojiImageSearchResult {
+  /** 查询图片的感知哈希 */
+  hash: string;
+  /** 最相似的单张表情 */
+  matches: EmojiImageSearchMatch[];
+  /** 按表情包聚合后的结果（每个包只保留最相似的一张） */
+  packs: EmojiImageSearchMatch[];
+}
+
+/* ------------------------------------------------------------------ */
 /* 中V群聊                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -544,6 +668,7 @@ export const PERMISSION_MODULES = [
   'song',
   'link',
   'group',
+  'emoji',
   'cn',
   'profile',
   'user',
@@ -556,6 +681,7 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModule, string> = {
   song: '歌曲',
   link: '外链站点',
   group: '群聊',
+  emoji: '表情广场',
   cn: 'CN 扩列条',
   profile: '介绍页',
   user: '用户',
@@ -585,6 +711,11 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: 'group.update.own', module: 'group', label: '修改自己的群聊', scope: 'own' },
   { key: 'group.update.any', module: 'group', label: '修改任意群聊', scope: 'any' },
   { key: 'group.delete', module: 'group', label: '删除群聊' },
+  { key: 'emoji.create', module: 'emoji', label: '创建表情包并上传表情' },
+  { key: 'emoji.update.own', module: 'emoji', label: '修改自己的表情包', scope: 'own' },
+  { key: 'emoji.update.any', module: 'emoji', label: '修改任意表情包', scope: 'any' },
+  { key: 'emoji.delete.own', module: 'emoji', label: '删除自己的表情包', scope: 'own' },
+  { key: 'emoji.delete.any', module: 'emoji', label: '删除任意表情包', scope: 'any' },
   { key: 'cn.manage', module: 'cn', label: 'CN 扩列条管理' },
   { key: 'profile.update', module: 'profile', label: '编辑介绍页' },
   { key: 'user.manage', module: 'user', label: '用户管理' },

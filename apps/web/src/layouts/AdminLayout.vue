@@ -46,6 +46,13 @@ const menuItems = [
     perms: ['group.create', 'group.update.own', 'group.update.any', 'group.delete'],
   },
   {
+    name: 'admin-emoji',
+    label: '表情广场',
+    icon: 'MagicStick',
+    path: '/admin/emoji',
+    perms: ['emoji.create', 'emoji.update.own', 'emoji.update.any', 'emoji.delete.own', 'emoji.delete.any'],
+  },
+  {
     name: 'admin-profile',
     label: '介绍页管理',
     icon: 'Document',

@@ -135,8 +135,8 @@ export class SeedService {
     const presets: Array<{ name: string; description: string; permissions: string[] }> = [
       {
         name: '注册用户',
-        description: '自助注册用户，可使用扩列等公开功能',
-        permissions: [],
+        description: '自助注册用户，可创建并管理自己的表情包',
+        permissions: ['emoji.create', 'emoji.update.own', 'emoji.delete.own'],
       },
       {
         name: '站点管理员',
@@ -159,12 +159,15 @@ export class SeedService {
           'group.create',
           'group.update.any',
           'group.delete',
+          'emoji.create',
+          'emoji.update.any',
+          'emoji.delete.any',
           'profile.update',
         ],
       },
       {
         name: '投稿用户',
-        description: '投稿歌曲，发布与修改自己的群聊和外链',
+        description: '投稿歌曲，发布与修改自己的群聊、外链和表情包',
         permissions: [
           'song.create',
           'song.update.own',
@@ -172,6 +175,9 @@ export class SeedService {
           'link.update.own',
           'group.create',
           'group.update.own',
+          'emoji.create',
+          'emoji.update.own',
+          'emoji.delete.own',
         ],
       },
     ];
@@ -181,6 +187,14 @@ export class SeedService {
       if (!existing) {
         await this.roles.create(preset);
         this.logger.log(`已创建预设角色：${preset.name}`);
+        continue;
+      }
+
+      // 新版本新增的权限点（如表情广场）自动合并到既有预设角色
+      const merged = [...new Set([...(existing.permissions ?? []), ...preset.permissions])];
+      if (merged.length !== (existing.permissions?.length ?? 0)) {
+        await this.roles.update(existing.id, { permissions: merged });
+        this.logger.log(`已补齐预设角色权限：${preset.name}`);
       }
     }
   }

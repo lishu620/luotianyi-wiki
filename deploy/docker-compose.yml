@@ -84,10 +84,16 @@ services:
       MEILI_HOST: http://meilisearch:7700
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
       MEILI_SONG_INDEX: songs
+      # 表情广场：压缩后的图片保存在持久卷中
+      UPLOAD_DIR: /app/uploads
+      UPLOAD_MAX_MB: 12
+      EMOJI_MAX_DIMENSION: 1080
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       TZ: Asia/Shanghai
-    mem_limit: 320m
+    volumes:
+      - uploads-data:/app/uploads
+    mem_limit: 480m
 
   web:
     # 同 api，镜像名可用 IMAGE_PREFIX / IMAGE_TAG 覆盖
@@ -108,3 +114,4 @@ services:
 volumes:
   pg-data:
   meili-data:
+  uploads-data:

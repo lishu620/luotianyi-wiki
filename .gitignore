@@ -29,6 +29,10 @@ Thumbs.db
 # infra data (if bind-mounted)
 infra/data/
 
+# 表情广场本地文件（上传的图片）
+apps/api/uploads/
+uploads/
+
 # 本地免安装依赖服务（PostgreSQL / Meilisearch），见 scripts/setup-local-services.ps1
 .local/
 

@@ -28,6 +28,9 @@
         "deploy:verify": "powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy.ps1 -OnlyVerify"
     },
     "pnpm": {
+        "overrides": {
+            "fastify": "5.11.3"
+        },
         "onlyBuiltDependencies": [
             "esbuild",
             "@tailwindcss/oxide",

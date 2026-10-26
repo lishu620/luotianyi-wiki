@@ -47,4 +47,13 @@ export default () => ({
     username: process.env.ADMIN_USERNAME ?? 'admin',
     password: process.env.ADMIN_PASSWORD ?? 'luotianyi2026',
   },
+
+  upload: {
+    /** 本地存储根目录（相对路径基于后端进程工作目录） */
+    dir: process.env.UPLOAD_DIR ?? 'uploads',
+    maxFileSizeMb: Number(process.env.UPLOAD_MAX_MB ?? 12),
+    emojiMaxDimension: Number(process.env.EMOJI_MAX_DIMENSION ?? 1080),
+    emojiQuality: Number(process.env.EMOJI_WEBP_QUALITY ?? 82),
+    emojiSearchMaxDistance: Number(process.env.EMOJI_SEARCH_MAX_DISTANCE ?? 12),
+  },
 });

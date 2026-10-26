@@ -233,6 +233,8 @@ docker compose -f deploy/docker-compose.yml exec -T postgres \
 
 配置位置：`/root/nginx/conf.d/luotianyi-wiki.conf`（源文件在仓库 `deploy/nginx/`）
 
+> 从旧版本升级时请同步该文件：表情广场上传需要 `client_max_body_size 16m`，否则大于 1MB 的图片会在宿主机 Nginx 层被 413 拒绝。
+
 ```bash
 python3 scripts/deploy/verify-deploy.py https://luotianyi.wiki    # 先确认服务正常
 
@@ -249,12 +251,20 @@ docker exec nginx-proxy nginx -t && docker exec nginx-proxy nginx -s reload
 
 ## 数据卷
 
-| 卷                          | 内容             |
-| --------------------------- | ---------------- |
-| `luotianyi-wiki_pg-data`    | PostgreSQL 数据  |
-| `luotianyi-wiki_meili-data` | Meilisearch 索引 |
+| 卷                          | 内容                                       |
+| --------------------------- | ------------------------------------------ |
+| `luotianyi-wiki_pg-data`    | PostgreSQL 数据                            |
+| `luotianyi-wiki_meili-data` | Meilisearch 索引                           |
+| `luotianyi-wiki_uploads-data` | 表情广场图片（展示图 + 无水印底图）      |
 
-删除数据卷会清空所有数据，请先备份。
+删除数据卷会清空所有数据，请先备份。表情图片可直接打包卷内容：
+
+```bash
+docker run --rm \
+  -v luotianyi-wiki_uploads-data:/data \
+  -v "$PWD":/backup alpine \
+  tar czf /backup/uploads-$(date +%F).tar.gz -C /data .
+```
 
 ## 待处理的安全事项
 

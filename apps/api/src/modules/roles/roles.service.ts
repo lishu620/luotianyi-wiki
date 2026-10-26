@@ -10,8 +10,15 @@ import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto';
 /** 内置超级管理员角色名（不可删除、不可改名，权限恒为 `*`） */
 export const SUPER_ROLE_NAME = '超级管理员';
 
-/** 自助注册用户的默认角色名（无后台权限，仅可使用扩列等公开功能） */
+/** 自助注册用户的默认角色名 */
 export const REGISTER_ROLE_NAME = '注册用户';
+
+/** 注册用户默认拥有的表情广场权限（可创建 / 管理自己的表情包） */
+export const REGISTER_DEFAULT_PERMISSIONS = [
+  'emoji.create',
+  'emoji.update.own',
+  'emoji.delete.own',
+];
 
 @Injectable()
 export class RolesService {
@@ -150,16 +157,25 @@ export class RolesService {
     return created;
   }
 
-  /** 确保「注册用户」角色存在（自助注册时分配） */
+  /** 确保「注册用户」角色存在（自助注册时分配），并补齐表情广场默认权限 */
   async ensureUserRole(): Promise<RoleEntity> {
     const existing = await this.findByName(REGISTER_ROLE_NAME);
-    if (existing) return existing;
+    if (existing) {
+      const merged = [...new Set([...(existing.permissions ?? []), ...REGISTER_DEFAULT_PERMISSIONS])];
+      if (merged.length !== (existing.permissions?.length ?? 0)) {
+        existing.permissions = merged;
+        const saved = await this.roles.save(existing);
+        this.acl.invalidate();
+        return saved;
+      }
+      return existing;
+    }
 
     const created = await this.roles.save(
       this.roles.create({
         name: REGISTER_ROLE_NAME,
-        description: '自助注册用户，可使用扩列等公开功能',
-        permissions: [],
+        description: '自助注册用户，可创建并管理自己的表情包',
+        permissions: [...REGISTER_DEFAULT_PERMISSIONS],
         builtin: false,
       }),
     );

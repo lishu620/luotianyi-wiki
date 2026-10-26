@@ -1,10 +1,13 @@
 import 'reflect-metadata';
 
+import multipart from '@fastify/multipart';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -12,13 +15,33 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true, bodyLimit: 2 * 1024 * 1024 }),
+    new FastifyAdapter({ trustProxy: true, bodyLimit: 16 * 1024 * 1024 }),
   );
 
   const config = app.get(ConfigService);
   const port = config.get<number>('port') ?? 3000;
   const prefix = config.get<string>('globalPrefix') ?? 'api';
   const corsOrigins = config.get<string[]>('corsOrigins') ?? ['http://localhost:5173'];
+  const uploadDir = resolve(config.get<string>('upload.dir') ?? 'uploads');
+  const maxUploadMb = Math.max(Number(config.get<number>('upload.maxFileSizeMb') ?? 12), 1);
+
+  // 表情广场：本地文件上传 + 静态访问 /api/uploads/**
+  mkdirSync(uploadDir, { recursive: true });
+  await app.register(multipart, {
+    limits: {
+      fileSize: maxUploadMb * 1024 * 1024,
+      files: 1,
+      fields: 24,
+      parts: 32,
+    },
+  });
+  app.useStaticAssets({
+    root: uploadDir,
+    prefix: '/api/uploads/',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    immutable: true,
+    decorateReply: false,
+  });
   // CORS_ORIGINS 含 '*' 时回显请求来源：前端与 /api 同源，宿主机 IP 变更无需改配置
   const allowAnyOrigin = corsOrigins.includes('*');
 
@@ -62,6 +85,7 @@ async function bootstrap(): Promise<void> {
   logger.log(`接口地址   http://localhost:${port}/${prefix}`);
   logger.log(`接口文档   http://localhost:${port}/${prefix}/docs`);
   logger.log(`允许来源   ${corsOrigins.join(', ')}`);
+  logger.log(`上传目录   ${uploadDir}`);
 }
 
 void bootstrap();

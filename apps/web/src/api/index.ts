@@ -1,5 +1,6 @@
 export * from './auth';
 export * from './cn';
+export * from './emoji';
 export * from './groups';
 export * from './http';
 export * from './links';

@@ -47,6 +47,13 @@ const quickEntries = [
     accent: 'from-violet-400 to-violet-600',
   },
   {
+    name: 'emoji',
+    title: '表情广场',
+    description: '浏览、上传与搜索洛天依表情包，支持以图搜图',
+    icon: 'MagicStick',
+    accent: 'from-sky-400 to-cyan-600',
+  },
+  {
     name: 'links',
     title: '同好导航',
     description: '一站跳转到百科、视频、音乐与同人社区',
@@ -197,9 +204,9 @@ onMounted(async () => {
 
     <!-- 快捷入口 -->
     <section class="lty-container mt-14">
-      <SectionHeading title="快速入口" subtitle="四个板块，覆盖资料、作品与同好站点" icon="Grid" />
+      <SectionHeading title="快速入口" subtitle="五个板块，覆盖资料、作品、表情与同好站点" icon="Grid" />
 
-      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <router-link
           v-for="entry in quickEntries"
           :key="entry.name"

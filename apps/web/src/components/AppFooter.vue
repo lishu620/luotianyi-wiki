@@ -4,6 +4,7 @@ import { LINK_CATEGORY_LABELS } from '@luotianyi/shared';
 const quickLinks = [
   { name: 'profile', label: '洛天依介绍' },
   { name: 'songs', label: '歌曲库' },
+  { name: 'emoji', label: '表情广场' },
   { name: 'links', label: '同好导航' },
   { name: 'stats', label: '数据统计' },
 ] as const;
@@ -25,7 +26,7 @@ const year = new Date().getFullYear();
         </div>
 
         <p class="mt-3 max-w-md text-sm leading-relaxed text-ink-500 dark:text-ink-400">
-          一个由同好维护的资料站，用于整理虚拟歌手洛天依的角色资料、原创歌曲与同好站点导航。
+          一个由同好维护的资料站，用于整理虚拟歌手洛天依的角色资料、原创歌曲、表情包与同好站点导航。
           本站内容仅供参考，官方设定请以官方发布为准。
         </p>
 

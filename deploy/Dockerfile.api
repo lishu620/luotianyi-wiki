@@ -35,6 +35,9 @@ ENV NODE_ENV=production \
     TZ=Asia/Shanghai
 WORKDIR /app
 
+# 表情水印使用 SVG 文字渲染，需要中文字体（Alpine 默认无字体）
+RUN apk add --no-cache font-noto-cjk
+
 # 只装生产依赖；@luotianyi/shared 通过本地目录链接，无需发布到 npm
 COPY --from=build /tmp/runtime-package.json ./package.json
 COPY --from=build /src/packages/shared/dist ./shared/dist
