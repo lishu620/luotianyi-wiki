@@ -89,7 +89,9 @@ if [ -z "$IMAGE_PREFIX" ]; then
 fi
 IMAGE_PREFIX="${IMAGE_PREFIX:-ghcr.io/lishu620/luotianyi-wiki}"
 
-WEB_HOST_PORT="$(env_get WEB_HOST_PORT)"
+WEB_BIND_IP="${WEB_BIND_IP:-$(env_get WEB_BIND_IP)}"
+WEB_BIND_IP="${WEB_BIND_IP:-0.0.0.0}"
+WEB_HOST_PORT="${WEB_HOST_PORT:-$(env_get WEB_HOST_PORT)}"
 WEB_HOST_PORT="${WEB_HOST_PORT:-80}"
 ADMIN_USER="$(env_get ADMIN_USERNAME)"
 ADMIN_USER="${ADMIN_USER:-admin}"
@@ -188,7 +190,15 @@ fi
 
 # ---------------------------------------------------------------- 重建容器
 log "重建 api / web 容器"
-IMAGE_PREFIX="$IMAGE_PREFIX" IMAGE_TAG="$TARGET" "${COMPOSE[@]}" up -d --no-build
+ok "web 端口：$WEB_BIND_IP:$WEB_HOST_PORT → 容器 80"
+
+if ! IMAGE_PREFIX="$IMAGE_PREFIX" IMAGE_TAG="$TARGET" "${COMPOSE[@]}" up -d --no-build; then
+  warn "重建容器失败。若错误为 address already in use，说明宿主 $WEB_HOST_PORT 端口已被占用"
+  warn "（常见于宿主机自身装了 Nginx/Apache）。把 web 容器改成只绑回环端口："
+  warn "  在 deploy/.env 里写入 WEB_BIND_IP=127.0.0.1 与 WEB_HOST_PORT=8081，再重跑本脚本"
+  warn "  并把宿主机 Nginx 的 proxy_pass 指向 http://127.0.0.1:8081"
+  die "重建容器失败，请按上面的提示处理后重试"
+fi
 
 wait_api_ready() {
   local i
@@ -228,6 +238,9 @@ fi
 if [ "$HEALTHY" = 1 ]; then
   env_put IMAGE_PREFIX "$IMAGE_PREFIX"
   env_put IMAGE_TAG "$TARGET"
+  # 端口绑定也要落盘，否则下次更新会退回 0.0.0.0:80（宿主机 80 被占用时直接失败）
+  env_put WEB_BIND_IP "$WEB_BIND_IP"
+  env_put WEB_HOST_PORT "$WEB_HOST_PORT"
 
   if [ "$VERIFY" = 1 ]; then
     log "全站校验"

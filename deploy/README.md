@@ -37,6 +37,7 @@ bash deploy/deploy.sh --prebuilt
 | 后台口令 | **随机生成，部署结尾打印**；要固定则 `ADMIN_PASSWORD=你的口令 bash deploy/deploy.sh --prebuilt` |
 
 > 宿主 80 端口已被占用时（本站线上就是这样）：`WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 bash deploy/deploy.sh --prebuilt`
+> 两个变量都会被写回 `deploy/.env`，之后 `update.sh` 不需要重复传参。
 
 > `.env` 只在**不存在**时生成（除非 `--regen-env`）；`ADMIN_PASSWORD` 只在**首次创建 admin** 时生效，账号已存在时不会覆盖（原因见「忘记后台口令」）。
 >
@@ -73,7 +74,7 @@ bash deploy/update.sh     # 就这么一条
 ### 早期部署迁移到 `update.sh`
 
 `update.sh` 依赖 `deploy/.env`（里面是数据库密码、`JWT_SECRET`、`MEILI_MASTER_KEY` 等）。
-如果服务器上的容器是更早的流程装起来的、没有这个文件，**不要直接跑 `deploy.sh`** —— 它会生成新的随机数据库密码，与已有的 `pg-data` 数据卷对不上，后端会连不上库。正确做法是从原来的部署里把密钥抄进 `deploy/.env`（再补上 `WEB_HOST_PORT`、`IMAGE_PREFIX`），然后执行 `bash deploy/update.sh`。
+如果服务器上的容器是更早的流程装起来的、没有这个文件，**不要直接跑 `deploy.sh`** —— 它会生成新的随机数据库密码，与已有的 `pg-data` 数据卷对不上，后端会连不上库。正确做法是从原来的部署里把密钥抄进 `deploy/.env`（再补上 `WEB_BIND_IP`、`WEB_HOST_PORT`、`IMAGE_PREFIX`），然后执行 `bash deploy/update.sh`。
 
 ### 回滚
 
@@ -109,14 +110,14 @@ bash deploy/deploy.sh
 
 ## 当前部署事实
 
-| 项       | 值                                                         |
-| -------- | ---------------------------------------------------------- |
-| 访问地址 | <https://luotianyi.wiki>                                   |
-| 服务器   | `192.168.31.106`                                           |
-| 部署目录 | `/home/mlishu/luotianyi-wiki`                              |
-| 对外端口 | 仅 `127.0.0.1:8081`（回环），由宿主机既有 nginx 统一入口   |
-| 容器     | `lty-postgres` / `lty-meilisearch` / `lty-api` / `lty-web` |
-| HTTPS    | Cloudflare 代理 + Flexible SSL（回源 HTTP）                |
+| 项       | 值                                                                  |
+| -------- | ------------------------------------------------------------------- |
+| 访问地址 | <https://luotianyi.wiki>                                            |
+| 服务器   | `192.168.31.106`                                                    |
+| 部署目录 | `/opt/luotianyi-wiki`                                               |
+| 对外端口 | 仅 `127.0.0.1:8081`（回环），由宿主机既有 nginx 统一入口            |
+| 容器     | `lty-postgres` / `lty-meilisearch` / `lty-api` / `lty-web`          |
+| 入口     | 宿主机 Nginx（系统安装或容器版 `nginx-proxy`），反代到回环 `:8081` |
 
 ## 架构
 
@@ -124,14 +125,12 @@ bash deploy/deploy.sh
 浏览器
   │  HTTPS
   ▼
-Cloudflare（代理 / CDN / Bot 防护）
-  │  HTTP :80  Host: luotianyi.wiki
-  ▼
-宿主机 nginx-proxy 容器（已有，独占 :80）
-  │  /root/nginx/conf.d/luotianyi-wiki.conf
+宿主机 Nginx（系统安装的 nginx 或容器版 nginx-proxy，独占 :80/:443）
+  │  系统 Nginx：/etc/nginx/sites-enabled/luotianyi.wiki
+  │  容器版    ：/root/nginx/conf.d/luotianyi-wiki.conf
   │  proxy_pass → 127.0.0.1:8081
   ▼
-lty-web 容器（Nginx 托管 SPA 静态文件）
+lty-web 容器（Nginx 托管 SPA 静态文件，仅绑定 127.0.0.1:8081）
   ├── /            → SPA（history 路由回退到 index.html）
   └── /api/*       → http://api:3000（容器内网）
                         │
@@ -141,12 +140,17 @@ lty-web 容器（Nginx 托管 SPA 静态文件）
                         └── lty-meilisearch（容器内网，不暴露）
 ```
 
-**关键设计**：所有对外流量只经过宿主机已有的 `nginx-proxy`，本站不新增任何对外监听端口，因此不会与服务器上的 MySQL、fminfinity 等既有服务冲突。
+**关键设计**：所有对外流量只经过宿主机已有的 Nginx，本站不新增任何对外监听端口，因此不会与服务器上的 MySQL、fminfinity 等既有服务冲突。
 
 该场景下的首次部署命令：`WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 bash deploy/deploy.sh --prebuilt`
 （compose 里的映射是 `'${WEB_BIND_IP:-0.0.0.0}:${WEB_HOST_PORT:-80}:80'`，不设 `WEB_BIND_IP` 时会绑到所有网卡。）
 
-日常更新：`cd /home/mlishu/luotianyi-wiki && bash deploy/update.sh`（端口等配置从 `deploy/.env` 读取，不用重复传参）。
+> `deploy.sh` 与 `update.sh` 都会把 `WEB_BIND_IP` / `WEB_HOST_PORT` 写回 `deploy/.env`。
+> 若 `.env` 是旧版本脚本生成的（没有这两项），执行一次
+> `printf 'WEB_BIND_IP=127.0.0.1\nWEB_HOST_PORT=8081\n' >> deploy/.env` 再更新即可，
+> 否则重建容器时会退回 `0.0.0.0:80`，在宿主机已占用 80 的机器上报 `address already in use`。
+
+日常更新：`cd /opt/luotianyi-wiki && bash deploy/update.sh`（端口等配置从 `deploy/.env` 读取，不用重复传参）。
 
 ## 忘记后台口令
 
@@ -231,9 +235,37 @@ docker compose -f deploy/docker-compose.yml exec -T postgres \
 
 ## 更新 nginx 配置
 
-配置位置：`/root/nginx/conf.d/luotianyi-wiki.conf`（源文件在仓库 `deploy/nginx/`）
+入口 Nginx 可能是**系统安装**的，也可能是**容器版 `nginx-proxy`**，改法不同：
 
-> 从旧版本升级时请同步该文件：表情广场上传需要 `client_max_body_size 16m`，否则大于 1MB 的图片会在宿主机 Nginx 层被 413 拒绝。
+### A. 系统安装的 Nginx（`/etc/nginx`）
+
+站点配置：`/etc/nginx/sites-enabled/luotianyi.wiki`（通常是指向 `sites-available/` 的软链）。
+在 **HTTPS 的 `server {}` 块内**（上传走 443）补上加粗两项：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name luotianyi.wiki www.luotianyi.wiki;
+
+    client_max_body_size 16m;        # 表情广场上传（Nginx 默认只有 1m，否则 413）
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        ...
+        proxy_send_timeout 120s;     # 图片压缩较慢，默认 60s 可能超时
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+```bash
+ls -l /etc/nginx/sites-enabled/luotianyi.wiki   # 确认真实文件（软链指向 sites-available）
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### B. 容器版 `nginx-proxy`
+
+配置位置：`/root/nginx/conf.d/luotianyi-wiki.conf`（源文件在仓库 `deploy/nginx/`）
 
 ```bash
 python3 scripts/deploy/verify-deploy.py https://luotianyi.wiki    # 先确认服务正常
@@ -245,6 +277,10 @@ docker exec nginx-proxy nginx -s reload         # 平滑重载
 **回滚**（让主域名恢复指向原有站点）：
 
 ```bash
+# 系统 Nginx：还原备份或删除本站的 server 块后 reload
+sudo nginx -t && sudo systemctl reload nginx
+
+# 容器版：
 rm /root/nginx/conf.d/luotianyi-wiki.conf
 docker exec nginx-proxy nginx -t && docker exec nginx-proxy nginx -s reload
 ```

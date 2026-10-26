@@ -109,7 +109,8 @@ ADMIN_PASSWORD=$ADMIN_PASS
 IMAGE_PREFIX=${IMAGE_PREFIX:-ghcr.io/lishu620/luotianyi-wiki}
 IMAGE_TAG=${IMAGE_TAG:-latest}
 
-# 对外只暴露的前端端口（WEB_BIND_IP 可选，用于只绑回环）
+# 对外只暴露的前端端口；WEB_BIND_IP 用于只绑回环（宿主机已装 Nginx 时用 127.0.0.1）
+WEB_BIND_IP=${WEB_BIND_IP:-}
 WEB_HOST_PORT=$PORT
 EOF
   ok ".env 已生成（CORS=*，不绑定具体 IP；后台 $ADMIN_USER / $ADMIN_PASS）"

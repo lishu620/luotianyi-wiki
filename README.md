@@ -350,7 +350,7 @@ pnpm infra:down
 
 ## 部署与更新
 
-线上地址：<https://luotianyi.wiki>（Cloudflare → 宿主机 Nginx → 本站容器）。
+线上地址：<https://luotianyi.wiki>（宿主机 Nginx / Cloudflare → 回环 :8081 → 本站 web 容器）。
 
 ### 职责分离：本地只开发，服务器只运行
 
@@ -383,6 +383,15 @@ bash deploy/deploy.sh --prebuilt
 ```bash
 WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081 bash deploy/deploy.sh --prebuilt
 ```
+
+脚本会把这两个变量写回 `deploy/.env`，后续 `bash deploy/update.sh` 自动沿用，**不需要每次重新传**。
+若 `.env` 是旧版本生成的（缺少这两项），手动补一次即可：
+
+```bash
+printf 'WEB_BIND_IP=127.0.0.1\nWEB_HOST_PORT=8081\n' >> deploy/.env
+```
+
+否则重建容器会退回 `0.0.0.0:80`，在宿主机已占用 80 的机器上报 `failed to bind host port 0.0.0.0:80/tcp: address already in use`。
 
 ### 更新线上（日常流程）
 
@@ -447,7 +456,7 @@ bash deploy/update.sh --tag <commit-sha>
 | `--skip-seed`                       | 不写入示例数据                                                                                                                                      |
 | `--regen-env`                       | 重新生成 `.env`（⚠️ 会换数据库密码，需先 `docker compose down -v`）                                                                                 |
 | `WEB_HOST_PORT`                     | 对外端口，默认 `80`                                                                                                                                 |
-| `WEB_BIND_IP`                       | 绑定的网卡，默认 `0.0.0.0`；宿主 80 被占用时用 `WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081` 只绑回环                                                  |
+| `WEB_BIND_IP`                       | 绑定的网卡，默认 `0.0.0.0`；宿主 80 被占用时用 `WEB_BIND_IP=127.0.0.1 WEB_HOST_PORT=8081` 只绑回环（会写回 `deploy/.env`）                            |
 | `IMAGE_PREFIX` / `IMAGE_TAG`        | 镜像来源与版本，默认 `ghcr.io/lishu620/luotianyi-wiki-*:latest`；国内拉取慢可设 `IMAGE_PREFIX=docker.m.daocloud.io/ghcr.io/lishu620/luotianyi-wiki` |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 后台账号，默认 `admin` + 随机口令（部署结尾打印）；要固定就显式传入                                                                                 |
 
